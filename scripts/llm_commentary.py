@@ -168,21 +168,63 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict) -> str:
 
 
 def extract_json(text: str) -> dict:
+    """
+    Extract the first valid JSON object from the response.
+
+    Tolerates models that wrap JSON in ```json ... ``` fences despite the
+    instruction. Uses a balanced-brace scan to avoid the greedy-regex bug
+    where trailing prose after a JSON object gets concatenated into the
+    captured substring.
+    """
     text = (text or "").strip()
     if not text:
-        raise SystemExit("[llm_commentary] API returned empty content. See logs above for raw response.")
+        raise SystemExit("[llm_commentary] API returned empty content.")
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
+
+    # Find the first balanced {...} block
+    start = text.find("{")
+    if start == -1:
+        raise SystemExit("[llm_commentary] no JSON object found in response.")
+
+    depth = 0
+    in_string = False
+    escape = False
+    end = -1
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+
+    if end == -1:
+        print("[llm_commentary] unbalanced braces. First 600 chars:", file=sys.stderr)
+        print(text[:600], file=sys.stderr)
+        raise SystemExit("[llm_commentary] could not find a balanced JSON object.")
+
+    candidate = text[start:end]
     try:
-        return json.loads(text)
+        return json.loads(candidate)
     except json.JSONDecodeError as e:
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if not m:
-            print(f"[llm_commentary] could not parse JSON. First 600 chars of raw response:", file=sys.stderr)
-            print(text[:600], file=sys.stderr)
-            raise SystemExit(f"[llm_commentary] JSON parse error: {e}")
-        return json.loads(m.group(0))
+        print(f"[llm_commentary] parse error on candidate. First 600 chars:", file=sys.stderr)
+        print(candidate[:600], file=sys.stderr)
+        raise SystemExit(f"[llm_commentary] JSON parse error: {e}")
 
 
 def call_minimax(system: str, user: str, model: str, base_url: str, api_key: str, max_tokens: int = 1800) -> str:
