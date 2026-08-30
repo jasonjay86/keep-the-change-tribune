@@ -82,15 +82,21 @@ FACTS — sparingly, only as seasoning:
 
 OUTPUT — strict JSON, exact shape:
 - One JSON object. No markdown fences. No preamble.
+- ALL FIVE FIELDS ARE MANDATORY. Every edition must include lede,
+  motw_blurb, rankings_blurb, by_the_numbers, AND closing. The model
+  stops generating only after the closing brace.
 - Keys (exact): "lede", "motw_blurb", "rankings_blurb", "by_the_numbers", "closing"
-- lede:           OBJECT with "headline" (string), "deck" (string), "body" (string, ~90 words)
+- lede:           OBJECT with "headline" (string), "deck" (string),
+                    "body" (string, ~90 words)
 - motw_blurb:     STRING, plain prose, ~70 words
-- rankings_blurb: STRING, plain prose, ~90 words. NO bios. Just names and what they did.
-- by_the_numbers: ARRAY of EXACTLY 4 OBJECTS, each with "value" (string) and "label" (string)
+- rankings_blurb: STRING, plain prose, ~90 words. NO bios. Just names
+                    and what they did.
+- by_the_numbers: ARRAY of EXACTLY 4 OBJECTS, each with "value" (string)
+                    and "label" (string)
 - closing:        STRING, plain prose, ~25 words
 
 CRITICAL: motw_blurb, rankings_blurb, closing MUST be plain strings.
-Only "lede" uses the nested object form."""
+Only "lede" uses the nested object form. ALL FIVE FIELDS MUST APPEAR."""
 
 
 def load_league_context(repo_root: Path) -> dict:
@@ -351,6 +357,10 @@ def call_minimax(system: str, user: str, model: str, base_url: str, api_key: str
     blocks = resp.get("content") or []
     text_chunks = [b.get("text", "") for b in blocks if b.get("type") == "text"]
     content = "".join(text_chunks).strip()
+    # Diagnostic: log stop_reason + usage so we can debug truncation
+    sr = resp.get("stop_reason")
+    usage = resp.get("usage", {})
+    print(f"[llm_commentary] stop_reason={sr}  usage={usage}  content_len={len(content)}", file=sys.stderr)
     if not content:
         print(f"[llm_commentary] empty content. Full response: {json.dumps(resp)[:500]}", file=sys.stderr)
         raise SystemExit("[llm_commentary] empty content")
