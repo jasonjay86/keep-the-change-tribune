@@ -91,7 +91,9 @@ def build_user_prompt(rankings: dict, site_cfg: dict) -> str:
 
 def extract_json(text: str) -> dict:
     """Tolerate models that wrap JSON in ```json ... ``` despite the instruction."""
-    text = text.strip()
+    text = (text or "").strip()
+    if not text:
+        raise SystemExit("[llm_commentary] API returned empty content. See logs above for raw response.")
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
@@ -101,7 +103,9 @@ def extract_json(text: str) -> dict:
         # Try to grab the first {...} block
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if not m:
-            raise SystemExit(f"[llm_commentary] could not parse JSON from response: {e}\n--- raw ---\n{text[:600]}")
+            print(f"[llm_commentary] could not parse JSON. First 600 chars of raw response:", file=sys.stderr)
+            print(text[:600], file=sys.stderr)
+            raise SystemExit(f"[llm_commentary] JSON parse error: {e}")
         return json.loads(m.group(0))
 
 
@@ -111,6 +115,7 @@ def call_minimax(messages: list, model: str, base_url: str, api_key: str, max_to
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": 0.85,
+        "response_format": {"type": "json_object"},
     }).encode("utf-8")
     req = urllib.request.Request(
         f"{base_url}/chat/completions",
