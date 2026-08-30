@@ -166,12 +166,18 @@ def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
     Choose the top N players from a roster to highlight.
 
     Strategy:
-    - If we have current-week scoring data, pick the top N starters by points.
-    - Otherwise (pre-game week), take the first N starters in lineup order
-      (which Sleeper populates with skill positions first: QB, RB, WR, TE).
+    - If the current week has produced non-zero scoring data (i.e. the
+      games have been played and players actually have points), pick the
+      top N starters by current-week fantasy points. This is "the guys
+      who decided the week" — exactly what Madden would name.
+    - Otherwise (pre-game week, or live in-progress with all zeros),
+      take the first N starters in lineup order. Sleeper orders
+      starters by fantasy position: QB, RB, WR, TE, K, DEF — so the
+      first two slots are typically QB + RB1, which is exactly who
+      Madden would talk about.
     - Always resolve player_id -> name/position/team via players_index.
 
-    Returns list of {name, position, team, points} dicts (no None entries).
+    Returns list of {name, position, team, points} dicts.
     """
     starters = roster.get("starters") or []
     starter_scores: dict[str, float] = {}
@@ -179,7 +185,6 @@ def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
     if matchups_for_week:
         for entry in matchups_for_week:
             if entry.get("roster_id") == roster.get("roster_id"):
-                # players_points is keyed by player_id
                 starter_scores = {
                     pid: float(pts)
                     for pid, pts in (entry.get("players_points") or {}).items()
@@ -187,11 +192,23 @@ def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
                 }
                 break
 
-    if starter_scores:
-        # Sort by points descending, take top N
-        top_ids = sorted(starter_scores, key=lambda p: starter_scores[p], reverse=True)[:n]
+    # Decide which strategy to use. The "has the week tipped off?" check
+    # is: are there any non-zero scores? An all-zeros players_points dict
+    # means week hasn't been played yet (or it's an in-progress 0-0).
+    has_live_scoring = any(v > 0 for v in starter_scores.values())
+
+    if has_live_scoring:
+        # Sort by points descending, take top N. Break ties deterministically
+        # by roster slot order so the same team always surfaces the same
+        # players week-to-week when everyone is tied.
+        indexed = sorted(
+            enumerate(starters),
+            key=lambda ix: (-starter_scores.get(ix[1], 0.0), ix[0]),
+        )
+        top_ids = [pid for _, pid in indexed[:n]]
     else:
-        # No scoring yet — take the first N starters in lineup order
+        # Pre-game week — take the first N starters in lineup order
+        # (Sleeper puts QB first, then RB1, WR1, etc.)
         top_ids = starters[:n]
 
     out = []
