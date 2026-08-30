@@ -323,7 +323,7 @@ def main():
             model=llm_cfg.get("model", "MiniMax-M3"),
             base_url=llm_cfg.get("base_url", "https://api.minimax.io/anthropic/v1").rstrip("/"),
             api_key=os.environ["MINIMAX_API_KEY"],
-            max_tokens=llm_cfg.get("max_tokens", 1200),
+            max_tokens=llm_cfg.get("max_tokens", 1800),
         )
     commentary = extract_json(raw)
 
