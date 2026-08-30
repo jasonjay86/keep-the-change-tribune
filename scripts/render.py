@@ -23,6 +23,7 @@ def build_context(rankings: dict, commentary: dict | None, site_cfg: dict) -> di
     # Sensible defaults if commentary missing (template shouldn't blow up)
     lede          = (commentary or {}).get("lede")
     motw_blurb    = (commentary or {}).get("motw_blurb")
+    pick          = (commentary or {}).get("pick")
     rankings_blurb= (commentary or {}).get("rankings_blurb")
     by_the_numbers = (commentary or {}).get("by_the_numbers") or [
         {"value": rankings["rankings"][0]["power_score"],     "label": "Top Power Score"},
@@ -42,6 +43,7 @@ def build_context(rankings: dict, commentary: dict | None, site_cfg: dict) -> di
         "matchup_of_week":  rankings.get("matchup_of_week"),
         "lede":             lede,
         "motw_blurb":       motw_blurb,
+        "pick":             pick,
         "rankings_blurb":   rankings_blurb,
         "by_the_numbers":   by_the_numbers,
         "closing":          closing,

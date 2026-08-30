@@ -284,6 +284,56 @@ html, body {
   color: var(--ink);
 }
 
+.tribune-pick {
+  margin: 22px auto 0;
+  padding: 14px 18px;
+  border-top: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  text-align: center;
+  max-width: 88%;
+  background: rgba(110, 26, 26, 0.04);
+}
+.pick-label {
+  font-family: "Old Standard TT", serif;
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.pick-line {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 12px;
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.pick-team {
+  font-size: 22px;
+  color: var(--ink);
+}
+.pick-spread {
+  font-size: 32px;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.pick-blurb {
+  font-family: "Old Standard TT", serif;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin-top: 6px;
+  max-width: 70%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* ============ POWER RANKINGS TABLE ============ */
 
 .rankings-table {

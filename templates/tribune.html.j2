@@ -91,6 +91,17 @@
       </div>
     </div>
     {% if motw_blurb %}<p class="motw-blurb">{{ motw_blurb }}</p>{% endif %}
+
+    {% if pick and pick.favorite and pick.spread is not none %}
+    <div class="tribune-pick">
+      <div class="pick-label">── Tribune Pick ──</div>
+      <div class="pick-line">
+        <span class="pick-team">{{ pick.favorite }}</span>
+        <span class="pick-spread">{% if pick.spread < 0 %}{{ pick.spread }}{% elif pick.spread > 0 %}+{{ pick.spread }}{% else %}PK{% endif %}</span>
+      </div>
+      {% if pick.blurb %}<p class="pick-blurb">{{ pick.blurb }}</p>{% endif %}
+    </div>
+    {% endif %}
   </aside>
   {% endif %}
 </section>

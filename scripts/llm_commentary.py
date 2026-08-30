@@ -82,13 +82,27 @@ FACTS — sparingly, only as seasoning:
 
 OUTPUT — strict JSON, exact shape:
 - One JSON object. No markdown fences. No preamble.
-- ALL FIVE FIELDS ARE MANDATORY. Every edition must include lede,
-  motw_blurb, rankings_blurb, by_the_numbers, AND closing. The model
-  stops generating only after the closing brace.
-- Keys (exact): "lede", "motw_blurb", "rankings_blurb", "by_the_numbers", "closing"
+- ALL SIX FIELDS ARE MANDATORY. Every edition must include lede,
+  motw_blurb, pick, rankings_blurb, by_the_numbers, AND closing. The
+  model stops generating only after the closing brace.
+- Keys (exact): "lede", "motw_blurb", "pick", "rankings_blurb", "by_the_numbers", "closing"
 - lede:           OBJECT with "headline" (string), "deck" (string),
                     "body" (string, ~90 words)
 - motw_blurb:     STRING, plain prose, ~70 words
+- pick:           OBJECT with:
+                    "favorite"   (string, team_b team_a name or generic
+                                  team name — one of the MOTW sides)
+                    "spread"     (number, projected margin in fantasy
+                                  points; typically 3-30, can be negative
+                                  if the underdog is your pick)
+                    "blurb"      (string, ~25-35 words, Madden betting
+                                  voice — light analysis explaining the
+                                  pick, but doesn't have to be factually
+                                  rigorous. Examples: "I like Vitamin -7
+                                  and it won't be close. Burrow cooks the
+                                  secondary all day." or "Give me the
+                                  crown prince +14. Henry runs it 28
+                                  times and the clock kills ya.")
 - rankings_blurb: STRING, plain prose, ~90 words. NO bios. Just names
                     and what they did.
 - by_the_numbers: ARRAY of EXACTLY 4 OBJECTS, each with "value" (string)
@@ -96,7 +110,8 @@ OUTPUT — strict JSON, exact shape:
 - closing:        STRING, plain prose, ~25 words
 
 CRITICAL: motw_blurb, rankings_blurb, closing MUST be plain strings.
-Only "lede" uses the nested object form. ALL FIVE FIELDS MUST APPEAR."""
+Only "lede" and "pick" use the nested object form. ALL SIX FIELDS
+MUST APPEAR."""
 
 
 def load_league_context(repo_root: Path) -> dict:
@@ -374,6 +389,11 @@ STUB_FALLBACK = {
         "body":     "Alright, alright, here we are. Twelve managers, twelve rosters, twelve zeroes across the board. You can't tell me anything yet — nobody's played. It's like trying to call a baseball game when the pitcher's still in the dugout. We got the brothers squaring off. We got the old man in there. We got the new guy, Trey, who I haven't seen enough tape on. That's gonna be the year. Let's watch some football.",
     },
     "motw_blurb":     "BOOM — Jason versus the east-coast brother. This is the one. Commissioner's club against the eldest. Blood on the field, kinda. Dad's watching. The new guy has the byline too if he wants it.",
+    "pick": {
+        "favorite": "Vitamin J",
+        "spread": -7,
+        "blurb":   "I like Vitamin J laying 7 and it won't be close. Burrow cooks that secondary, Cook finds the crease, the scoreboard does the rest.",
+    },
     "rankings_blurb": "Now watch this — here's a guy who's ranked number one. And here's another guy ranked number one. They're all ranked number one, that's the problem. Tiebreakers? None. Schedule? Same. Power score? Fifty flat, the whole board. You can't rank 'em yet. You just gotta play 'em.",
     "by_the_numbers": [
         {"value": "12", "label": "Coaches Drawing Up Plays"},
@@ -422,12 +442,21 @@ def main():
         )
     commentary = extract_json(raw)
 
-    required = {"lede", "motw_blurb", "rankings_blurb", "by_the_numbers", "closing"}
+    required = {"lede", "motw_blurb", "pick", "rankings_blurb", "by_the_numbers", "closing"}
     missing = required - set(commentary.keys())
     if missing:
         print(f"[llm_commentary] LLM JSON missing fields {missing}. Falling back to stub.", file=sys.stderr)
         print(f"[llm_commentary] Got keys: {list(commentary.keys())}", file=sys.stderr)
         commentary = STUB_FALLBACK
+
+    # Sanity-check the pick: if it's malformed, drop it (template hides
+    # the box if pick.favorite is empty) but keep the rest of the
+    # commentary. Don't fall back to stub for one bad field.
+    pk = commentary.get("pick")
+    if isinstance(pk, dict):
+        if not pk.get("favorite") or not isinstance(pk.get("spread"), (int, float)):
+            print(f"[llm_commentary] pick malformed: {pk}. Dropping pick.", file=sys.stderr)
+            commentary["pick"] = None
 
     Path(args.out).write_text(json.dumps(commentary, indent=2))
     print(f"[llm_commentary] wrote {args.out} (from API)")
