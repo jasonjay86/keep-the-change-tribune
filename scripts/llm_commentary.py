@@ -61,24 +61,22 @@ That's the total. Stay tight. If you go over 350 words the page gets
 long and you start sounding like a writer, not Madden. Cut anything that
 doesn't sound like talking. When in doubt, leave it out.
 
-FACTS — use sparingly, only when relevant:
-- The league has been around 8 years. People know each other. You don't
-  need to explain the dynamics every week — that gets old fast.
-- Family, geography, and work history are COLOR. Reach for them when
-  they make the matchup more interesting, NOT as a default framing for
-  every section. If a section has nothing to add about family, just
-  call the football.
-- USE the personal touch when:
-    - Brothers play each other (one nod to the family angle, then move on)
-    - Father plays a son (rare, but a story when it happens)
-    - Geography is the actual story (a guy traveling, a long-distance rivalry)
-- SKIP the personal touch when:
-    - Nothing about the matchup involves family or geography
-    - The ranking blurb is just walking the board — names + numbers, not bios
-- The new guy (Trey) is fair game for a gentle ribbing, but only if it
-  fits the section. Don't force it.
-- Do NOT invent facts that aren't listed (no specific employer roles, no
-  specific cities not listed, no specific family stories).
+FACTS — sparingly, only as seasoning:
+- The league has been around 8 years. People know each other. Don't
+  over-explain — a single line per section is plenty.
+- You may receive 0-2 "personal_bits" in the data — these are one-liner
+  observations the commissioner has curated for variety. Treat them as
+  light seasoning: weave one in if it fits naturally, ignore if it doesn't.
+  Football is always the meal; the bits are the salt.
+- USE a personal bit when:
+    - The bit's handles are the actual MOTW matchup (one nod, then move on)
+    - The bit's handles are in the rankings walk and it's funny
+    - It's the only way to land a joke that's already in your head
+- SKIP a personal bit when:
+    - The section is purely mechanical (rankings walk, by-the-numbers)
+    - You've already used the bit's angle in another section
+    - Forcing it would make the section longer, not better
+- Do NOT invent facts. If it's not in the data, don't mention it.
 - Refer to owners by their Sleeper display_name or their generic team name.
 - Headlines stay sharp. Body copy stays Madden.
 
@@ -107,6 +105,82 @@ def load_league_context(repo_root: Path) -> dict:
         return {}
 
 
+def pick_personal_bits(context: dict, rankings: dict, n: int = 2, rng=None) -> list[dict]:
+    """
+    Select up to N personal bits for this edition.
+
+    Strategy:
+    1. Build a relevance score for each bit: how many of its handles are
+       in this week's MOTW? Higher = more relevant.
+    2. Take the top 3 highest-scoring bits as the candidate pool.
+    3. If fewer than 3 bits scored > 0, top up with random non-MOTW bits
+       so every edition still gets variety.
+    4. Randomly pick N distinct bits from the candidate pool.
+       Uses `rng` so the workflow can pin a seed for reproducibility
+       when needed (otherwise falls back to system random).
+    """
+    import random
+    rng = rng or random.SystemRandom()
+
+    pool = (context or {}).get("personal_bits_pool") or {}
+    bits = pool.get("bits") or []
+    if not bits or n <= 0:
+        return []
+
+    # MOTW participants this week
+    motw_handles = set()
+    motw = (rankings or {}).get("matchup_of_week") or {}
+    for side in ("team_a", "team_b"):
+        team = motw.get(side) or {}
+        name = team.get("name") or ""
+        if name:
+            motw_handles.add(name)
+
+    # All roster participants (full ranking board)
+    all_handles = set()
+    for r in (rankings or {}).get("rankings") or []:
+        owner = r.get("owner") or {}
+        name = owner.get("display_name") if isinstance(owner, dict) else owner
+        if name:
+            all_handles.add(name)
+
+    scored = []
+    for bit in bits:
+        handles = set(bit.get("handles") or [])
+        if not handles:
+            continue
+        motw_overlap    = len(handles & motw_handles)
+        # Board-overlap is the fallback signal: a bit about the league
+        # generally gets a small bonus if at least one handle is on
+        # the board this week.
+        board_overlap   = len(handles & all_handles)
+        score = (motw_overlap * 10) + board_overlap
+        scored.append((score, bit))
+
+    scored.sort(key=lambda x: (-x[0], x[1].get("text", "")))
+
+    # Take top 3 highest-scoring, then sample N without replacement
+    top_candidates = [b for _, b in scored[:3]]
+
+    # If we don't have 3 candidates with positive relevance, top up with
+    # random bits that haven't been picked yet (for variety).
+    if len(top_candidates) < 3:
+        seen = {b.get("text") for b in top_candidates}
+        for _, b in scored[3:]:
+            if b.get("text") not in seen:
+                top_candidates.append(b)
+                seen.add(b.get("text"))
+            if len(top_candidates) >= 3:
+                break
+
+    if not top_candidates:
+        return []
+
+    # Sample without replacement
+    n = min(n, len(top_candidates))
+    return rng.sample(top_candidates, n)
+
+
 def enrich_members(rows: list[dict], context: dict) -> list[dict]:
     """
     Add commissioner-supplied color to each roster row so the LLM can use
@@ -125,21 +199,17 @@ def enrich_members(rows: list[dict], context: dict) -> list[dict]:
 
 
 def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
-                      personal_touches: bool = False) -> str:
+                      personal_bits: list[dict] | None = None) -> str:
     season_type = rankings.get("season_type", "regular")
     wk = rankings.get("week")
     league_name = rankings.get("league", "the league")
     motw = rankings.get("matchup_of_week")
 
-    # Strip per-row personal fields when personal_touches is off, so the
-    # model doesn't see them in the payload and can't reach for them.
-    members = (context or {}).get("members") or {}
-
     rows = []
     for r in rankings["rankings"]:
         owner = (r.get("owner") or {}).get("display_name", "?")
         team  = (r.get("owner") or {}).get("team_name", "") or "(no team name)"
-        row = {
+        rows.append({
             "rank":        r["rank"],
             "owner":       owner,
             "team":        team,
@@ -147,16 +217,7 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
             "points_for":  round(r["points_for"], 1),
             "power_score": round(r["power_score"], 1),
             "sos":         round(r.get("sos_factor", 1.0), 2),
-        }
-        if personal_touches:
-            info = members.get(owner) or {}
-            row["role"]         = info.get("role") or ""
-            row["location"]     = info.get("location") or ""
-            row["notes"]        = info.get("notes") or ""
-            row["team_label"]   = team if team and team != "(no team name)" else (
-                                  info.get("generic_team_name") or owner
-                                 )
-        rows.append(row)
+        })
 
     motw_payload = _motw_payload(motw)
 
@@ -171,11 +232,13 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
         "commissioner_handle": site_cfg.get("commissioner_handle"),
     }
 
-    if personal_touches:
-        payload["family_dynamics"]      = (context or {}).get("family_dynamics") or {}
-        payload["geography"]            = (context or {}).get("geography") or {}
-        payload["professional_culture"] = (context or {}).get("professional_culture") or {}
-        payload["voice_directives"]     = (context or {}).get("voice_directives") or {}
+    # Personal bits: 0-2 short one-liners curated for variety. If the list
+    # is empty, the model just calls the football.
+    if personal_bits:
+        payload["personal_bits"] = [
+            {"about": bit.get("handles", []), "text": bit.get("text", "")}
+            for bit in personal_bits
+        ]
 
     return json.dumps(payload, indent=2)
 
@@ -327,8 +390,12 @@ def main():
     llm_cfg  = cfg.get("llm", {})
     context  = load_league_context(Path(".").resolve())
 
-    personal_touches = bool(llm_cfg.get("personal_touches", False))
-    user_prompt = build_user_prompt(rankings, cfg, context, personal_touches=personal_touches)
+    personal_bits_count = int(llm_cfg.get("personal_bits", 0))
+    chosen_bits = pick_personal_bits(context, rankings, n=personal_bits_count) if personal_bits_count > 0 else []
+    if chosen_bits:
+        handles = [h for b in chosen_bits for h in b.get("handles", [])]
+        print(f"[llm_commentary] picked {len(chosen_bits)} personal bit(s) — about: {handles}", file=sys.stderr)
+    user_prompt = build_user_prompt(rankings, cfg, context, personal_bits=chosen_bits)
 
     if args.dry_run or not os.environ.get("MINIMAX_API_KEY"):
         Path(args.out).write_text(json.dumps(STUB_FALLBACK, indent=2))

@@ -115,5 +115,61 @@
     "length_budget": "Total of lede.body + motw_blurb + rankings_blurb + closing: ~330 words. (Down from 500.) Keep it tight.",
     "what_to_cut": "No purple prose. No 1920s newspaper flourishes. No headline puns in body copy. Speak like Madden: short sentences, choppy rhythm, the occasional half-thought.",
     "what_to_keep": "Warmth, trash talk, family dynamics, geography jokes. The Tribune is still a love letter — just spoken out loud."
+  },
+
+  "personal_bits_pool": {
+    "_comment": "Curated pool of one-liner personal touches. Each edition, the Tribune randomly picks 1-2 of these (relevance-boosted toward the actual matchup). The model gets them as seasoning, not the meal — football is always the focus. Each bit is intentionally self-contained so the LLM can drop it in without needing extra context.",
+    "_format": "{ handles: [...owners this bit applies to], text: 'one-sentence observation' }",
+    "_notes": "Keep these SHORT (under 25 words each). Make them warm, never mean. Avoid repeating the same bit every week — random selection handles variety.",
+    "bits": [
+      {
+        "handles": ["jasonjay86", "DaRaven70", "kingofwakanda52"],
+        "text": "The three brothers are spread across the country and meet once a year for the trophy photo."
+      },
+      {
+        "handles": ["DaRaven70", "jasonjay86"],
+        "text": "The oldest brother still thinks being older means something in fantasy football. Spoiler: it doesn't."
+      },
+      {
+        "handles": ["kingofwakanda52", "jasonjay86", "DaRaven70"],
+        "text": "The youngest brother came in last on purpose to keep the peace. Probably."
+      },
+      {
+        "handles": ["DaMojohSr"],
+        "text": "The patriarch has watched all three of his sons ruin his fantasy Sundays for years. He's still here."
+      },
+      {
+        "handles": ["DougC71"],
+        "text": "DougC watches from a mountain in New Mexico, where the internet is slow and the takes are confident."
+      },
+      {
+        "handles": ["Cashorcheckplz"],
+        "text": "Cashorcheckplz moved from Michigan to Texas and brought his drafting strategy with him. Can't say it's working yet."
+      },
+      {
+        "handles": ["videogameyankee"],
+        "text": "The Michigan contingent holds down one seat at the bar and one seat in the playoffs."
+      },
+      {
+        "handles": ["TreyusExMachina"],
+        "text": "Trey is the new guy, which means everyone's first trash talk at him is still a fresh wound."
+      },
+      {
+        "handles": ["DaMojohSr", "DaRaven70", "jasonjay86", "kingofwakanda52"],
+        "text": "There's a family group chat, and someone in it is asking 'who should I start' every Sunday at 11am."
+      },
+      {
+        "handles": ["ptoJoe", "BigMarc", "Cashorcheckplz", "jasonjay86"],
+        "text": "The 'office days' gang still trades inside-the-firm gossip at the waiver wire. Some things never change."
+      },
+      {
+        "handles": ["DaRaven70"],
+        "text": "DaRaven's east coast clock means his lineup locks in three hours before anyone else's. No excuses after."
+      },
+      {
+        "handles": ["gonzogust", "streetlegaltony"],
+        "text": "The quiet ones are always the ones to watch. Keep an eye on these two."
+      }
+    ]
   }
 }
