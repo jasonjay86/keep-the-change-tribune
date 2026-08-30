@@ -109,25 +109,48 @@ def extract_json(text: str) -> dict:
         return json.loads(m.group(0))
 
 
-def call_minimax(messages: list, model: str, base_url: str, api_key: str, max_tokens: int = 1800) -> str:
+def call_minimax(system: str, user: str, model: str, base_url: str, api_key: str, max_tokens: int = 1800) -> str:
+    """
+    MiniMax Anthropic-compatible Messages API.
+
+    Endpoint: {base_url}/messages  (NOT /chat/completions)
+    Auth: Authorization: Bearer <key>
+    Body: messages use content-blocks [{type:"text", text:"..."}],
+          system is a top-level string field, NOT a message.
+    Response: content is an array of blocks; text comes from the block
+              where type == "text".
+    """
     body = json.dumps({
         "model": model,
-        "messages": messages,
         "max_tokens": max_tokens,
         "temperature": 0.85,
-        "response_format": {"type": "json_object"},
+        "system": system,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": user}]}],
     }).encode("utf-8")
     req = urllib.request.Request(
-        f"{base_url}/chat/completions",
+        f"{base_url.rstrip('/')}/messages",
         data=body,
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
+            "anthropic-version": "2023-06-01",
         },
     )
-    with urllib.request.urlopen(req, timeout=60) as r:
-        resp = json.loads(r.read())
-    return resp["choices"][0]["message"]["content"]
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            resp = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace")
+        print(f"[llm_commentary] HTTP {e.code} from {req.full_url}: {err_body[:500]}", file=sys.stderr)
+        raise
+
+    blocks = resp.get("content") or []
+    text_chunks = [b.get("text", "") for b in blocks if b.get("type") == "text"]
+    content = "".join(text_chunks).strip()
+    if not content:
+        print(f"[llm_commentary] empty content. Full response: {json.dumps(resp)[:500]}", file=sys.stderr)
+        raise SystemExit("[llm_commentary] empty content")
+    return content
 
 
 def main():
@@ -167,15 +190,13 @@ def main():
         return
 
     raw = call_minimax(
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": user_prompt},
-        ],
-        model=llm_cfg.get("model", "MiniMax-M3"),
-        base_url=llm_cfg.get("base_url", "https://api.minimax.io/v1").rstrip("/"),
-        api_key=os.environ["MINIMAX_API_KEY"],
-        max_tokens=llm_cfg.get("max_tokens", 1800),
-    )
+            system=SYSTEM_PROMPT,
+            user=user_prompt,
+            model=llm_cfg.get("model", "MiniMax-M3"),
+            base_url=llm_cfg.get("base_url", "https://api.minimax.io/anthropic/v1").rstrip("/"),
+            api_key=os.environ["MINIMAX_API_KEY"],
+            max_tokens=llm_cfg.get("max_tokens", 1800),
+        )
     commentary = extract_json(raw)
     Path(args.out).write_text(json.dumps(commentary, indent=2))
     print(f"[llm_commentary] wrote {args.out} (from API)")

@@ -9,7 +9,7 @@
   "llm": {
     "provider": "openai-compatible",
     "model": "MiniMax-M3",
-    "base_url": "https://api.minimax.io/v1",
+    "base_url": "https://api.minimax.io/anthropic/v1",
     "max_tokens": 1800
   },
   "weights": {
