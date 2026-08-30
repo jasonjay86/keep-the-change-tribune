@@ -1,0 +1,21 @@
+{
+  "league_id": "1312862141639839744",
+  "site_title": "The Keep The Change League Tribune",
+  "tagline": "Est. 2026 — A Weekly Chronicle of Wins, Losses, and Loud Opinions",
+  "commissioner_handle": "jasonjay86",
+  "accent_color": "#6e1a1a",
+  "newsprint_color": "#f4ecd8",
+  "ink_color": "#1a1a1a",
+  "llm": {
+    "provider": "openai-compatible",
+    "model": "MiniMax-M3",
+    "base_url": "https://api.minimax.io/v1",
+    "max_tokens": 1800
+  },
+  "weights": {
+    "win_pct": 0.40,
+    "pf_per_game": 0.25,
+    "strength_of_schedule": 0.20,
+    "all_play_win_pct": 0.15
+  }
+}
