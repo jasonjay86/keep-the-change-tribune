@@ -44,7 +44,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Fetch Sleeper data
-        run: python scripts/fetch_sleeper.py
+        id: fetch
+        run: |
+          python scripts/fetch_sleeper.py
+          python -c "import json; d=json.load(open('data.json')); print('week='+str(d['nfl_state']['week']))" >> "$GITHUB_OUTPUT"
 
       - name: Compute power rankings
         run: python scripts/power_rankings.py
@@ -61,16 +64,20 @@ jobs:
           fi
 
       - name: Render latest edition
+        env:
+          WEEK_NUM: ${{ steps.fetch.outputs.week }}
         run: |
           python scripts/render.py \
             --out index.html \
-            --archive "editions/week-$(python -c 'import json; print(json.load(open(\"rankings.json\"))[\"week\"])').html"
+            --archive "editions/week-${WEEK_NUM}.html"
 
       - name: Build archive index
         run: |
           python scripts/build_archive_index.py
 
       - name: Commit & push if changed
+        env:
+          WEEK_NUM: ${{ steps.fetch.outputs.week }}
         run: |
           git config user.name "tribune-bot"
           git config user.email "tribune-bot@users.noreply.github.com"
@@ -78,6 +85,6 @@ jobs:
             echo "::notice::No changes to publish this week."
           else
             git add index.html editions/ static/
-            git commit -m "Tribune: Week $(python -c 'import json; print(json.load(open(\"rankings.json\"))[\"week\"])') edition"
+            git commit -m "Tribune: Week ${WEEK_NUM} edition"
             git push
           fi

@@ -6,7 +6,7 @@ come from the data we pass in. No inventing nicknames, no fishing for personal
 trivia, no real-life references. Tone is warm trash talk fit for friends &
 family; commissioner credit is byline only.
 
-Output schema (validated as JSON):
+Output schema (validated after extraction):
 {
   "lede": {"headline": str, "deck": str, "body": str (1-2 short paragraphs)},
   "motw_blurb": str,
@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -43,7 +44,13 @@ Voice rules:
 - Headlines should be punny, allusive, never mean.
 - Keep total body copy under ~500 words across all sections.
 
-You MUST respond with a single JSON object — no markdown fences, no preamble."""
+You MUST respond with a single JSON object — no markdown fences, no preamble,
+no commentary outside the JSON. The JSON MUST have EXACTLY these top-level
+keys: "lede", "motw_blurb", "rankings_blurb", "by_the_numbers", "closing".
+
+"lede" must itself be an object with keys: "headline", "deck", "body".
+"by_the_numbers" must be an array of exactly 4 objects, each with keys
+"value" (string) and "label" (string)."""
 
 
 def build_user_prompt(rankings: dict, site_cfg: dict) -> str:
@@ -52,7 +59,6 @@ def build_user_prompt(rankings: dict, site_cfg: dict) -> str:
     league_name = rankings.get("league", "the league")
     motw = rankings.get("matchup_of_week")
 
-    # Compact rankings table for the LLM
     rows = []
     for r in rankings["rankings"]:
         owner = (r.get("owner") or {}).get("display_name", "?")
@@ -100,7 +106,6 @@ def extract_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        # Try to grab the first {...} block
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if not m:
             print(f"[llm_commentary] could not parse JSON. First 600 chars of raw response:", file=sys.stderr)
@@ -153,6 +158,24 @@ def call_minimax(system: str, user: str, model: str, base_url: str, api_key: str
     return content
 
 
+STUB_FALLBACK = {
+    "lede": {
+        "headline": "Tribune Receives Word From the Front",
+        "deck":     "Field reports are incomplete this week; the desk improvises.",
+        "body":     "Our correspondent returned from the wire room with garbled dispatches. The Tribune therefore prints the standings with the customary flourish and trusts that next week's edition will arrive in better order.",
+    },
+    "motw_blurb":     "The matchup of the week will, regrettably, commentate itself.",
+    "rankings_blurb": "Read the column. Form your own opinions. The desk stands by.",
+    "by_the_numbers": [
+        {"value": "12", "label": "Hopefuls"},
+        {"value": "—",  "label": "Games Settled"},
+        {"value": "—",  "label": "Power Spread"},
+        {"value": "?",  "label": "Week Ahead"},
+    ],
+    "closing": "Back to the press room. We file again next Tuesday.",
+}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rankings",   default="rankings.json")
@@ -169,23 +192,7 @@ def main():
     user_prompt = build_user_prompt(rankings, cfg)
 
     if args.dry_run or not os.environ.get("MINIMAX_API_KEY"):
-        stub = {
-            "lede": {
-                "headline": "Twelve Teams Lace Up; The Tribune Watches",
-                "deck":     "Opening week brings no answers, only possibilities.",
-                "body":     "The season opens with twelve contenders and no prior evidence. Every roster is a closed envelope; every prediction is a guess dressed in a blazer. The Tribune will return next week with receipts.",
-            },
-            "motw_blurb":     "A meeting of undefeated outfits. One of them leaves the week still believing.",
-            "rankings_blurb": "All tied at the gate. The Tribune declines to invent a favorite — yet.",
-            "by_the_numbers": [
-                {"value": "12", "label": "Hopefuls"},
-                {"value": "0",  "label": "Games Settled"},
-                {"value": "—",  "label": "Power Spread"},
-                {"value": "1",  "label": "Week Ahead"},
-            ],
-            "closing": "Tip-off approaches. Read the standings again Sunday night.",
-        }
-        Path(args.out).write_text(json.dumps(stub, indent=2))
+        Path(args.out).write_text(json.dumps(STUB_FALLBACK, indent=2))
         print(f"[llm_commentary] wrote {args.out} (stub, no API key)")
         return
 
@@ -198,6 +205,16 @@ def main():
             max_tokens=llm_cfg.get("max_tokens", 1800),
         )
     commentary = extract_json(raw)
+
+    # Validate the shape — fall back to stub if the LLM returned valid JSON
+    # that doesn't match our schema.
+    required = {"lede", "motw_blurb", "rankings_blurb", "by_the_numbers", "closing"}
+    missing = required - set(commentary.keys())
+    if missing:
+        print(f"[llm_commentary] LLM JSON missing fields {missing}. Falling back to stub.", file=sys.stderr)
+        print(f"[llm_commentary] Got keys: {list(commentary.keys())}", file=sys.stderr)
+        commentary = STUB_FALLBACK
+
     Path(args.out).write_text(json.dumps(commentary, indent=2))
     print(f"[llm_commentary] wrote {args.out} (from API)")
 
