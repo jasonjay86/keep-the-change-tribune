@@ -45,12 +45,20 @@ Voice rules:
 - Keep total body copy under ~500 words across all sections.
 
 You MUST respond with a single JSON object — no markdown fences, no preamble,
-no commentary outside the JSON. The JSON MUST have EXACTLY these top-level
-keys: "lede", "motw_blurb", "rankings_blurb", "by_the_numbers", "closing".
+no commentary outside the JSON.
 
-"lede" must itself be an object with keys: "headline", "deck", "body".
-"by_the_numbers" must be an array of exactly 4 objects, each with keys
-"value" (string) and "label" (string)."""
+The JSON MUST have EXACTLY these top-level keys with these EXACT types:
+  "lede"          — an OBJECT with keys "headline" (string), "deck" (string),
+                    "body" (string, 1-2 short paragraphs)
+  "motw_blurb"    — a STRING, plain prose, one short paragraph
+  "rankings_blurb"— a STRING, plain prose, one short paragraph
+  "by_the_numbers"— an ARRAY of exactly 4 OBJECTS, each with keys
+                    "value" (string) and "label" (string)
+  "closing"       — a STRING, plain prose, one short line
+
+CRITICAL: motw_blurb, rankings_blurb, and closing must be PLAIN STRINGS.
+Do NOT nest objects inside them. Do NOT return {"headline": ..., "deck": ...}
+for those fields — only "lede" uses that nested shape."""
 
 
 def build_user_prompt(rankings: dict, site_cfg: dict) -> str:
