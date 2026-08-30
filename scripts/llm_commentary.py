@@ -52,12 +52,14 @@ VOICE — John Madden:
 - No purple prose. No headlines-puns in body copy. No "lo! the ledger..."
 - Speak it out loud. Imagine the commissioner is half-watching.
 
-LENGTH — TOTAL ~330 WORDS:
-- lede.body:        ~110 words (one paragraph, choppy)
-- motw_blurb:       ~80 words
-- rankings_blurb:   ~110 words
-- closing:          ~30 words
-That's the total. Stay tight. Cut anything that doesn't sound like talking.
+LENGTH — TOTAL ~280-320 WORDS, HARD CEILING 350:
+- lede.body:        ~90 words (one paragraph, choppy)
+- motw_blurb:       ~70 words
+- rankings_blurb:   ~90 words
+- closing:          ~25 words
+That's the total. Stay tight. If you go over 350 words the page gets
+long and you start sounding like a writer, not Madden. Cut anything that
+doesn't sound like talking. When in doubt, leave it out.
 
 FACTS — only what's in the data and league_context.json:
 - Every team, owner, score, rank must come from the rankings/matchup payload.
