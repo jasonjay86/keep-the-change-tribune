@@ -63,6 +63,11 @@ doesn't sound like talking. When in doubt, leave it out.
 
 FACTS — only what's in the data and league_context.json:
 - Every team, owner, score, rank must come from the rankings/matchup payload.
+- The MOTW payload includes key_players for each team (2 NFL players with
+  position + team). Use them as concrete game-mechanics fuel: "this QB
+  against that defense", "the rookie WR vs. the veteran secondary", etc.
+  Don't invent stats not in the data, but DO talk about the matchup in
+  football terms using the players listed.
 - Relationships, geography, family dynamics, and work history come from
   league_context.json. Use them as COLOR, not as facts to editorialize on.
 - Do NOT invent facts that aren't listed (no specific employer roles, no

@@ -161,14 +161,64 @@ def strength_of_schedule(my_roster_id, all_matchups, pf_per_game_by_team, league
         return 1.0
     return (sum(opps_pf) / len(opps_pf)) / league_avg_pf if league_avg_pf else 1.0
 
+def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict, n: int = 2) -> list[dict]:
+    """
+    Choose the top N players from a roster to highlight.
+
+    Strategy:
+    - If we have current-week scoring data, pick the top N starters by points.
+    - Otherwise (pre-game week), take the first N starters in lineup order
+      (which Sleeper populates with skill positions first: QB, RB, WR, TE).
+    - Always resolve player_id -> name/position/team via players_index.
+
+    Returns list of {name, position, team, points} dicts (no None entries).
+    """
+    starters = roster.get("starters") or []
+    starter_scores: dict[str, float] = {}
+
+    if matchups_for_week:
+        for entry in matchups_for_week:
+            if entry.get("roster_id") == roster.get("roster_id"):
+                # players_points is keyed by player_id
+                starter_scores = {
+                    pid: float(pts)
+                    for pid, pts in (entry.get("players_points") or {}).items()
+                    if pid in starters
+                }
+                break
+
+    if starter_scores:
+        # Sort by points descending, take top N
+        top_ids = sorted(starter_scores, key=lambda p: starter_scores[p], reverse=True)[:n]
+    else:
+        # No scoring yet — take the first N starters in lineup order
+        top_ids = starters[:n]
+
+    out = []
+    for pid in top_ids:
+        info = players_index.get(pid)
+        if not info:
+            continue
+        out.append({
+            "name":     info["name"],
+            "position": info["position"],
+            "team":     info["team"],
+            "points":   round(starter_scores.get(pid, 0.0), 1),
+        })
+    return out
+
+
 def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = None,
                      generic_names: dict[str, str] | None = None) -> dict:
     users   = bundle["users"]
     rosters = bundle["rosters"]
     league_id = bundle["league"]["league_id"]
+    players_index = bundle.get("players_index") or {}
+    current_matchups = bundle.get("matchups") or []
 
     user_map = build_user_map(users, generic_names=generic_names)
     enriched = [roster_stats(r, user_map) for r in rosters]
+    raw_by_id = {r["roster_id"]: r for r in rosters}
 
     played = [r for r in enriched if r["games"] > 0]
     if not played:
@@ -190,8 +240,10 @@ def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = No
             if a and b:
                 preview_motw = {
                     "status": "preview",
-                    "team_a": {"name": a["owner"]["display_name"], "team": a["owner"]["team_name"], "rank": 0, "score": 50.0, "record": "0-0"},
-                    "team_b": {"name": b["owner"]["display_name"], "team": b["owner"]["team_name"], "rank": 0, "score": 50.0, "record": "0-0"},
+                    "team_a": {"name": a["owner"]["display_name"], "team": a["owner"]["team_name"], "rank": 0, "score": 50.0, "record": "0-0",
+                               "key_players": pick_key_players(raw_by_id[rids[0]], current_matchups, players_index, n=2)},
+                    "team_b": {"name": b["owner"]["display_name"], "team": b["owner"]["team_name"], "rank": 0, "score": 50.0, "record": "0-0",
+                               "key_players": pick_key_players(raw_by_id[rids[1]], current_matchups, players_index, n=2)},
                 }
         return {
             "league": bundle["league"]["name"],
@@ -291,12 +343,14 @@ def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = No
                            "team":  motw[0]["owner"]["team_name"],
                            "rank":  motw[0]["rank"],
                            "score": motw[0]["power_score"],
-                           "record": f"{motw[0]['wins']}-{motw[0]['losses']}" + (f"-{motw[0]['ties']}" if motw[0]['ties'] else "")},
+                           "record": f"{motw[0]['wins']}-{motw[0]['losses']}" + (f"-{motw[0]['ties']}" if motw[0]['ties'] else ""),
+                           "key_players": pick_key_players(raw_by_id[motw[0]["roster_id"]], current_matchups, players_index, n=2)},
                 "team_b": {"name": motw[1]["owner"]["display_name"],
                            "team":  motw[1]["owner"]["team_name"],
                            "rank":  motw[1]["rank"],
                            "score": motw[1]["power_score"],
-                           "record": f"{motw[1]['wins']}-{motw[1]['losses']}" + (f"-{motw[1]['ties']}" if motw[1]['ties'] else "")},
+                           "record": f"{motw[1]['wins']}-{motw[1]['losses']}" + (f"-{motw[1]['ties']}" if motw[1]['ties'] else ""),
+                           "key_players": pick_key_players(raw_by_id[motw[1]["roster_id"]], current_matchups, players_index, n=2)},
             } if motw else None
         ),
     }

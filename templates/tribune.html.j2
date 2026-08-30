@@ -52,6 +52,18 @@
         <div class="team-name">{{ matchup_of_week.team_a.team or matchup_of_week.team_a.name }}</div>
         <div class="owner-name">{{ matchup_of_week.team_a.name }}</div>
         <div class="record">Record: {{ matchup_of_week.team_a.record }}</div>
+        {% if matchup_of_week.team_a.key_players %}
+        <div class="key-players">
+          <div class="key-label">Watch</div>
+          {% for p in matchup_of_week.team_a.key_players %}
+          <div class="player-chip">
+            <span class="player-pos">{{ p.position }}</span>
+            <span class="player-name">{{ p.name }}</span>
+            <span class="player-team">{{ p.team }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
       <div class="vs">
         <div class="versus">vs.</div>
@@ -64,6 +76,18 @@
         <div class="team-name">{{ matchup_of_week.team_b.team or matchup_of_week.team_b.name }}</div>
         <div class="owner-name">{{ matchup_of_week.team_b.name }}</div>
         <div class="record">Record: {{ matchup_of_week.team_b.record }}</div>
+        {% if matchup_of_week.team_b.key_players %}
+        <div class="key-players">
+          <div class="key-label">Watch</div>
+          {% for p in matchup_of_week.team_b.key_players %}
+          <div class="player-chip">
+            <span class="player-pos">{{ p.position }}</span>
+            <span class="player-name">{{ p.name }}</span>
+            <span class="player-team">{{ p.team }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
     </div>
     {% if motw_blurb %}<p class="motw-blurb">{{ motw_blurb }}</p>{% endif %}

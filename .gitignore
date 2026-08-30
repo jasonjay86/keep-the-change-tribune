@@ -3,6 +3,7 @@ data.json
 rankings.json
 commentary.json
 preview.png
+cache/
 __pycache__/
 *.pyc
 .venv/

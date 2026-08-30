@@ -2,20 +2,56 @@
 fetch_sleeper.py — pull league data from the public Sleeper API.
 
 Usage: python fetch_sleeper.py [--out data.json]
-Writes JSON bundle with league, users, rosters, matchups, and nfl_state.
+Writes JSON bundle with league, users, rosters, matchups, nfl_state,
+and a resolved players index (slim — only players actually on a roster).
 """
 import argparse
 import json
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
 BASE = "https://api.sleeper.app/v1"
+PLAYERS_CACHE = Path("cache/players_nfl.json")
+PLAYERS_CACHE_MAX_AGE_DAYS = 7
+
 
 def _get(path: str):
     url = f"{BASE}{path}"
     with urllib.request.urlopen(url, timeout=20) as r:
         return json.loads(r.read())
+
+
+def fetch_players_db(force: bool = False) -> dict:
+    """
+    Fetch the full NFL players database (~14MB, 12k players) and cache it
+    locally. Used to resolve player_id -> {name, position, team} for the
+    MOTW's highlighted-players feature.
+    """
+    if not force and PLAYERS_CACHE.exists():
+        age_days = (time.time() - PLAYERS_CACHE.stat().st_mtime) / 86400
+        if age_days < PLAYERS_CACHE_MAX_AGE_DAYS:
+            return json.loads(PLAYERS_CACHE.read_text())
+
+    print(f"[fetch_sleeper] downloading NFL player database (~14MB)...", file=sys.stderr)
+    with urllib.request.urlopen(f"{BASE}/players/nfl", timeout=60) as r:
+        data = r.read()
+    PLAYERS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    PLAYERS_CACHE.write_bytes(data)
+    return json.loads(data)
+
+
+def slim_player(player: dict) -> dict:
+    """Keep only the fields we actually render."""
+    return {
+        "name":     f"{player.get('first_name', '')} {player.get('last_name', '')}".strip(),
+        "position": player.get("position") or "?",
+        "team":     player.get("team") or "FA",
+        "status":   player.get("status") or "Active",
+        "injury":   player.get("injury_status"),
+    }
+
 
 def fetch(league_id: str) -> dict:
     league = _get(f"/league/{league_id}")
@@ -28,12 +64,26 @@ def fetch(league_id: str) -> dict:
 
     matchups = _get(f"/league/{league_id}/matchups/{week}")
 
+    # Slim player index — only players actually on someone's roster
+    all_player_ids = set()
+    for r in rosters:
+        all_player_ids.update(r.get("players") or [])
+        all_player_ids.update(r.get("starters") or [])
+
+    players_db = fetch_players_db()
+    players_index = {
+        pid: slim_player(players_db[pid])
+        for pid in all_player_ids
+        if pid in players_db
+    }
+
     return {
         "league": league,
         "users": users,
         "rosters": rosters,
         "matchups": matchups,
         "nfl_state": nfl_state,
+        "players_index": players_index,
     }
 
 def main():
