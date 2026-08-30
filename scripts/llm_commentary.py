@@ -66,16 +66,15 @@ FACTS — use sparingly, only when relevant:
   need to explain the dynamics every week — that gets old fast.
 - Family, geography, and work history are COLOR. Reach for them when
   they make the matchup more interesting, NOT as a default framing for
-  every section.
-- HARD RULE: use a personal touch (family, geography, work culture,
-  "the new guy" rib) in AT MOST TWO sections per edition. Not all five.
+  every section. If a section has nothing to add about family, just
+  call the football.
 - USE the personal touch when:
-    - Brothers play each other (one nod in MOTW or lede, then move on)
+    - Brothers play each other (one nod to the family angle, then move on)
     - Father plays a son (rare, but a story when it happens)
-    - Geography is the actual story (long-distance rivalry)
-- SKIP the personal touch in the RANKINGS section unless the family
-  angle is doing real work there. The ranking blurb is mostly names +
-  numbers; don't pad it with bios.
+    - Geography is the actual story (a guy traveling, a long-distance rivalry)
+- SKIP the personal touch when:
+    - Nothing about the matchup involves family or geography
+    - The ranking blurb is just walking the board — names + numbers, not bios
 - The new guy (Trey) is fair game for a gentle ribbing, but only if it
   fits the section. Don't force it.
 - Do NOT invent facts that aren't listed (no specific employer roles, no
@@ -125,17 +124,22 @@ def enrich_members(rows: list[dict], context: dict) -> list[dict]:
     return rows
 
 
-def build_user_prompt(rankings: dict, site_cfg: dict, context: dict) -> str:
+def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
+                      personal_touches: bool = False) -> str:
     season_type = rankings.get("season_type", "regular")
     wk = rankings.get("week")
     league_name = rankings.get("league", "the league")
     motw = rankings.get("matchup_of_week")
 
+    # Strip per-row personal fields when personal_touches is off, so the
+    # model doesn't see them in the payload and can't reach for them.
+    members = (context or {}).get("members") or {}
+
     rows = []
     for r in rankings["rankings"]:
         owner = (r.get("owner") or {}).get("display_name", "?")
         team  = (r.get("owner") or {}).get("team_name", "") or "(no team name)"
-        rows.append({
+        row = {
             "rank":        r["rank"],
             "owner":       owner,
             "team":        team,
@@ -143,17 +147,18 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict) -> str:
             "points_for":  round(r["points_for"], 1),
             "power_score": round(r["power_score"], 1),
             "sos":         round(r.get("sos_factor", 1.0), 2),
-        })
-
-    rows = enrich_members(rows, context)
-
-    motw_payload = None
-    if motw:
-        motw_payload = {
-            "status": motw["status"],
-            "team_a": motw["team_a"],
-            "team_b": motw["team_b"],
         }
+        if personal_touches:
+            info = members.get(owner) or {}
+            row["role"]         = info.get("role") or ""
+            row["location"]     = info.get("location") or ""
+            row["notes"]        = info.get("notes") or ""
+            row["team_label"]   = team if team and team != "(no team name)" else (
+                                  info.get("generic_team_name") or owner
+                                 )
+        rows.append(row)
+
+    motw_payload = _motw_payload(motw)
 
     payload = {
         "league":              league_name,
@@ -164,13 +169,25 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict) -> str:
         "rankings":            rows,
         "matchup_of_week":     motw_payload,
         "commissioner_handle": site_cfg.get("commissioner_handle"),
-        "family_dynamics":     (context or {}).get("family_dynamics") or {},
-        "geography":           (context or {}).get("geography") or {},
-        "professional_culture":(context or {}).get("professional_culture") or {},
-        "voice_directives":    (context or {}).get("voice_directives") or {},
     }
 
+    if personal_touches:
+        payload["family_dynamics"]      = (context or {}).get("family_dynamics") or {}
+        payload["geography"]            = (context or {}).get("geography") or {}
+        payload["professional_culture"] = (context or {}).get("professional_culture") or {}
+        payload["voice_directives"]     = (context or {}).get("voice_directives") or {}
+
     return json.dumps(payload, indent=2)
+
+
+def _motw_payload(motw):
+    if not motw:
+        return None
+    return {
+        "status": motw["status"],
+        "team_a": motw["team_a"],
+        "team_b": motw["team_b"],
+    }
 
 
 def extract_json(text: str) -> dict:
@@ -310,7 +327,8 @@ def main():
     llm_cfg  = cfg.get("llm", {})
     context  = load_league_context(Path(".").resolve())
 
-    user_prompt = build_user_prompt(rankings, cfg, context)
+    personal_touches = bool(llm_cfg.get("personal_touches", False))
+    user_prompt = build_user_prompt(rankings, cfg, context, personal_touches=personal_touches)
 
     if args.dry_run or not os.environ.get("MINIMAX_API_KEY"):
         Path(args.out).write_text(json.dumps(STUB_FALLBACK, indent=2))

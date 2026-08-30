@@ -10,7 +10,8 @@
     "provider": "openai-compatible",
     "model": "MiniMax-M3",
     "base_url": "https://api.minimax.io/anthropic/v1",
-    "max_tokens": 2200
+    "max_tokens": 2200,
+    "personal_touches": false
   },
   "weights": {
     "win_pct": 0.40,
