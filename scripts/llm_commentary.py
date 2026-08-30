@@ -66,16 +66,16 @@ FACTS — use sparingly, only when relevant:
   need to explain the dynamics every week — that gets old fast.
 - Family, geography, and work history are COLOR. Reach for them when
   they make the matchup more interesting, NOT as a default framing for
-  every section. If a section has nothing to add about family, just
-  call the football.
+  every section.
+- HARD RULE: use a personal touch (family, geography, work culture,
+  "the new guy" rib) in AT MOST TWO sections per edition. Not all five.
 - USE the personal touch when:
-    - Brothers play each other (one nod to the family angle, then move on)
+    - Brothers play each other (one nod in MOTW or lede, then move on)
     - Father plays a son (rare, but a story when it happens)
-    - Geography is the actual story (a guy traveling, a long-distance rivalry)
-- SKIP the personal touch when:
-    - Nothing about the matchup involves family or geography
-    - The ranking blurb is just walking the board — names + numbers, not bios
-    - You've already used the family angle in another section this week
+    - Geography is the actual story (long-distance rivalry)
+- SKIP the personal touch in the RANKINGS section unless the family
+  angle is doing real work there. The ranking blurb is mostly names +
+  numbers; don't pad it with bios.
 - The new guy (Trey) is fair game for a gentle ribbing, but only if it
   fits the section. Don't force it.
 - Do NOT invent facts that aren't listed (no specific employer roles, no
@@ -88,7 +88,7 @@ OUTPUT — strict JSON, exact shape:
 - Keys (exact): "lede", "motw_blurb", "rankings_blurb", "by_the_numbers", "closing"
 - lede:           OBJECT with "headline" (string), "deck" (string), "body" (string, ~90 words)
 - motw_blurb:     STRING, plain prose, ~70 words
-- rankings_blurb: STRING, plain prose, ~90 words
+- rankings_blurb: STRING, plain prose, ~90 words. NO bios. Just names and what they did.
 - by_the_numbers: ARRAY of EXACTLY 4 OBJECTS, each with "value" (string) and "label" (string)
 - closing:        STRING, plain prose, ~25 words
 
