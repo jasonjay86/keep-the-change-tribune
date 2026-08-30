@@ -390,9 +390,9 @@ STUB_FALLBACK = {
     },
     "motw_blurb":     "BOOM — Jason versus the east-coast brother. This is the one. Commissioner's club against the eldest. Blood on the field, kinda. Dad's watching. The new guy has the byline too if he wants it.",
     "pick": {
-        "favorite": "Vitamin J",
-        "spread": -7,
-        "blurb":   "I like Vitamin J laying 7 and it won't be close. Burrow cooks that secondary, Cook finds the crease, the scoreboard does the rest.",
+        "favorite": "—",
+        "spread": 0,
+        "blurb":   "[STUB — no LLM pick this edition; live model did not run]",
     },
     "rankings_blurb": "Now watch this — here's a guy who's ranked number one. And here's another guy ranked number one. They're all ranked number one, that's the problem. Tiebreakers? None. Schedule? Same. Power score? Fifty flat, the whole board. You can't rank 'em yet. You just gotta play 'em.",
     "by_the_numbers": [

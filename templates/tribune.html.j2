@@ -92,7 +92,7 @@
     </div>
     {% if motw_blurb %}<p class="motw-blurb">{{ motw_blurb }}</p>{% endif %}
 
-    {% if pick and pick.favorite and pick.spread is not none %}
+    {% if pick and pick.favorite and pick.favorite != "—" and pick.spread is not none %}
     <div class="tribune-pick">
       <div class="pick-label">── Tribune Pick ──</div>
       <div class="pick-line">
