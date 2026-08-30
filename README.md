@@ -41,6 +41,16 @@ python scripts/render.py
 
 Open `index.html` in a browser. The page uses Google Fonts — first load may take a second.
 
+## Configuration
+
+- `config.json` — league ID, site title, palette, ranking weights, LLM endpoint.
+- `league_context.json` — **commissioner-only** notes the LLM uses for
+  relationship color and warm-trash-talk: family dynamics, geography, work
+  culture, voice directives (e.g. "John Madden, ~330 words"). Edit this
+  file to teach the Tribune about your league without rewriting prompts.
+- Generic team names are pulled from `league_context.json` when an owner
+  has not set a Sleeper `team_name`.
+
 ## Deployment setup
 
 Two things you do *once*:

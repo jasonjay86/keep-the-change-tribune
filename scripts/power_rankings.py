@@ -24,12 +24,40 @@ import math
 from collections import defaultdict
 from pathlib import Path
 
-def build_user_map(users):
-    """Returns dict[user_id] -> {display_name, team_name, avatar}."""
+def load_generic_names(repo_root: Path) -> dict[str, str]:
+    """
+    Load commissioner-provided generic team names from league_context.json.
+    Returns {display_name: generic_team_name}. Falls back to {} if the file
+    is missing or malformed — empty team names then fall back to display_name.
+    """
+    ctx_path = repo_root / "league_context.json"
+    if not ctx_path.exists():
+        return {}
+    try:
+        ctx = json.loads(ctx_path.read_text())
+        return {
+            handle: info.get("generic_team_name")
+            for handle, info in (ctx.get("members") or {}).items()
+            if info.get("generic_team_name")
+        }
+    except Exception:
+        return {}
+
+
+def build_user_map(users, generic_names: dict[str, str] | None = None):
+    """Returns dict[user_id] -> {display_name, team_name, avatar}.
+
+    If team_name is empty and we have a generic name from the commissioner,
+    use the generic. Otherwise leave it blank and the template will show
+    the display_name as the team label.
+    """
+    generic_names = generic_names or {}
     return {
         u["user_id"]: {
             "display_name": u.get("display_name") or u.get("username") or "Unknown",
-            "team_name":    (u.get("metadata") or {}).get("team_name") or "",
+            "team_name":    (u.get("metadata") or {}).get("team_name")
+                            or generic_names.get(u.get("display_name") or "", "")
+                            or "",
             "avatar":       u.get("avatar"),
         }
         for u in users
@@ -133,12 +161,13 @@ def strength_of_schedule(my_roster_id, all_matchups, pf_per_game_by_team, league
         return 1.0
     return (sum(opps_pf) / len(opps_pf)) / league_avg_pf if league_avg_pf else 1.0
 
-def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = None) -> dict:
+def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = None,
+                     generic_names: dict[str, str] | None = None) -> dict:
     users   = bundle["users"]
     rosters = bundle["rosters"]
     league_id = bundle["league"]["league_id"]
 
-    user_map = build_user_map(users)
+    user_map = build_user_map(users, generic_names=generic_names)
     enriched = [roster_stats(r, user_map) for r in rosters]
 
     played = [r for r in enriched if r["games"] > 0]
@@ -281,7 +310,8 @@ def main():
 
     bundle = json.loads(Path(args.inp).read_text())
     cfg    = json.loads(Path(args.config).read_text())
-    result = compute_rankings(bundle, cfg["weights"])
+    generic_names = load_generic_names(Path(".").resolve())
+    result = compute_rankings(bundle, cfg["weights"], generic_names=generic_names)
 
     Path(args.out).write_text(json.dumps(result, indent=2))
     print(f"[power_rankings] wrote {args.out}")
