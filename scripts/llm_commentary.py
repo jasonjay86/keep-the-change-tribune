@@ -82,10 +82,11 @@ FACTS — sparingly, only as seasoning:
 
 OUTPUT — strict JSON, exact shape:
 - One JSON object. No markdown fences. No preamble.
-- ALL SIX FIELDS ARE MANDATORY. Every edition must include lede,
-  motw_blurb, pick, rankings_blurb, by_the_numbers, AND closing. The
-  model stops generating only after the closing brace.
-- Keys (exact): "lede", "motw_blurb", "pick", "rankings_blurb", "by_the_numbers", "closing"
+- `lede` is mandatory. Everything else is encouraged but optional —
+  the Tribune will gracefully suppress any section you skip. (But
+  best results come from emitting all six.)
+- Keys (exact, in this order): "lede", "motw_blurb", "pick",
+                                  "rankings_blurb", "by_the_numbers", "closing"
 - lede:           OBJECT with "headline" (string), "deck" (string),
                     "body" (string, ~90 words)
 - motw_blurb:     STRING, plain prose, ~70 words
@@ -111,7 +112,7 @@ OUTPUT — strict JSON, exact shape:
 
 CRITICAL: motw_blurb, rankings_blurb, closing MUST be plain strings.
 Only "lede" and "pick" use the nested object form. ALL SIX FIELDS
-MUST APPEAR."""
+ARE STRONGLY ENCOURAGED but only `lede` is enforced."""
 
 
 def load_league_context(repo_root: Path) -> dict:
@@ -442,10 +443,13 @@ def main():
         )
     commentary = extract_json(raw)
 
-    required = {"lede", "motw_blurb", "pick", "rankings_blurb", "by_the_numbers", "closing"}
-    missing = required - set(commentary.keys())
-    if missing:
-        print(f"[llm_commentary] LLM JSON missing fields {missing}. Falling back to stub.", file=sys.stderr)
+    # Validate: only `lede` is mandatory. The LLM may end_turn early
+    # if it judges the body is long enough; missing optional fields
+    # are gracefully suppressed by the template rather than triggering
+    # a full stub fallback (which is jarring — losing the LLM's actual
+    # lede and pick because closing didn't get written).
+    if not commentary.get("lede") or not isinstance(commentary.get("lede"), dict):
+        print(f"[llm_commentary] lede missing or not a dict. Falling back to stub.", file=sys.stderr)
         print(f"[llm_commentary] Got keys: {list(commentary.keys())}", file=sys.stderr)
         commentary = STUB_FALLBACK
 
@@ -457,6 +461,11 @@ def main():
         if not pk.get("favorite") or not isinstance(pk.get("spread"), (int, float)):
             print(f"[llm_commentary] pick malformed: {pk}. Dropping pick.", file=sys.stderr)
             commentary["pick"] = None
+    elif pk is None:
+        pass  # LLM omitted it intentionally
+    else:
+        # Unexpected type
+        commentary["pick"] = None
 
     Path(args.out).write_text(json.dumps(commentary, indent=2))
     print(f"[llm_commentary] wrote {args.out} (from API)")
