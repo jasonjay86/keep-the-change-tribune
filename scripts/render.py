@@ -15,7 +15,8 @@ def owner_label(team_name: str | None, display_name: str | None) -> str:
     return (team_name or "").strip() or (display_name or "Unknown")
 
 
-def build_context(rankings: dict, commentary: dict | None, site_cfg: dict) -> dict:
+def build_context(rankings: dict, commentary: dict | None, site_cfg: dict,
+                   path_prefix: str = "") -> dict:
     wk = rankings.get("week")
     season = rankings.get("season")
     season_type = rankings.get("season_type", "regular")
@@ -47,6 +48,7 @@ def build_context(rankings: dict, commentary: dict | None, site_cfg: dict) -> di
         "rankings_blurb":   rankings_blurb,
         "by_the_numbers":   by_the_numbers,
         "closing":          closing,
+        "path_prefix":      path_prefix,  # "" for index.html, "../" for editions/
         "generated_at":     datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     }
 
@@ -82,7 +84,11 @@ def main():
 
     if args.archive:
         Path(args.archive).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.archive).write_text(html)
+        # Re-render with path_prefix="../" so the archive's stylesheet
+        # link and any other relative asset paths resolve correctly.
+        archive_context = build_context(rankings, commentary, site_cfg, path_prefix="../")
+        archive_html = template.render(**archive_context)
+        Path(args.archive).write_text(archive_html)
         print(f"[render] archived {args.archive}")
 
 
