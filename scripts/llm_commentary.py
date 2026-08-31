@@ -94,16 +94,20 @@ OUTPUT — strict JSON, exact shape:
                     "favorite"   (string, team_b team_a name or generic
                                   team name — one of the MOTW sides)
                     "spread"     (number, projected margin in fantasy
-                                  points; typically 3-30, can be negative
-                                  if the underdog is your pick)
+                                  points. NEGATIVE = the picked team is
+                                  the favorite (standard Vegas convention:
+                                  -7 means favored by 7). POSITIVE =
+                                  underdog pick (+14 means getting 14).
+                                  Use the convention that matches how
+                                  Vegas prints the line.)
                     "blurb"      (string, ~25-35 words, Madden betting
                                   voice — light analysis explaining the
                                   pick, but doesn't have to be factually
-                                  rigorous. Examples: "I like Vitamin -7
-                                  and it won't be close. Burrow cooks the
-                                  secondary all day." or "Give me the
-                                  crown prince +14. Henry runs it 28
-                                  times and the clock kills ya.")
+                                  rigorous. Examples: "Vitamin J -7, won't
+                                  be close. Burrow cooks the secondary
+                                  all day." or "Jclan crown prince +14.
+                                  Henry runs it 28 times and the clock
+                                  kills ya.")
 - rankings_blurb: STRING, plain prose, ~90 words. NO bios. Just names
                     and what they did.
 - by_the_numbers: ARRAY of EXACTLY 4 OBJECTS, each with "value" (string)
