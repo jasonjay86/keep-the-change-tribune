@@ -91,23 +91,26 @@ OUTPUT — strict JSON, exact shape:
                     "body" (string, ~90 words)
 - motw_blurb:     STRING, plain prose, ~70 words
 - pick:           OBJECT with:
-                    "favorite"   (string, team_b team_a name or generic
-                                  team name — one of the MOTW sides)
+                    "favorite"   (string, must be the team name or
+                                  generic team name of one of the
+                                  MOTW sides — team_a or team_b)
                     "spread"     (number, projected margin in fantasy
-                                  points. NEGATIVE = the picked team is
-                                  the favorite (standard Vegas convention:
-                                  -7 means favored by 7). POSITIVE =
-                                  underdog pick (+14 means getting 14).
-                                  Use the convention that matches how
-                                  Vegas prints the line.)
+                                  points. Use VEGAS convention: the
+                                  favorite's spread is NEGATIVE, the
+                                  underdog's is POSITIVE. So if you
+                                  pick the favorite, write it as a
+                                  negative number; if you take the
+                                  underdog with the points, write it
+                                  as a positive number. Range roughly
+                                  3 to 30.)
                     "blurb"      (string, ~25-35 words, Madden betting
-                                  voice — light analysis explaining the
-                                  pick, but doesn't have to be factually
-                                  rigorous. Examples: "Vitamin J -7, won't
-                                  be close. Burrow cooks the secondary
-                                  all day." or "Jclan crown prince +14.
-                                  Henry runs it 28 times and the clock
-                                  kills ya.")
+                                  voice. State the pick in your own
+                                  words, give a sentence or two of
+                                  light analysis explaining why —
+                                  doesn't have to be factually rigorous
+                                  or even that confident. Just sound
+                                  like a guy with an opinion, calling
+                                  the game.)
 - rankings_blurb: STRING, plain prose, ~90 words. NO bios. Just names
                     and what they did.
 - by_the_numbers: ARRAY of EXACTLY 4 OBJECTS, each with "value" (string)
