@@ -53,6 +53,22 @@ def build_context(rankings: dict, commentary: dict | None, site_cfg: dict,
     }
 
 
+def compute_issue_number(archive_dir: Path = Path("editions")) -> int:
+    """
+    Compute the next issue number by counting existing archive files.
+
+    Counts editions/week-*.html files BEFORE writing the new archive,
+    so today's run becomes Issue (count + 1). On the first run (no
+    archives yet), returns 1.
+
+    The archive counter is the source of truth — no separate state
+    file. Deleting archives shifts the issue counter (acceptable,
+    since the counter is just a masthead label).
+    """
+    existing = list(archive_dir.glob("week-*.html")) if archive_dir.exists() else []
+    return len(existing) + 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rankings",   default="rankings.json")
@@ -62,6 +78,8 @@ def main():
     ap.add_argument("--out",        default="index.html")
     ap.add_argument("--archive",    default=None,
                     help="If set, also write a copy to this path (e.g. editions/week-1.html)")
+    ap.add_argument("--archive-dir", default="editions",
+                    help="Directory containing past week-*.html files (for issue counter)")
     args = ap.parse_args()
 
     env = Environment(
@@ -76,7 +94,10 @@ def main():
     commentary_path = Path(args.commentary)
     commentary = json.loads(commentary_path.read_text()) if commentary_path.exists() else None
 
+    issue = compute_issue_number(Path(args.archive_dir))
+    print(f"[render] issue counter: No. {issue}")
     context = build_context(rankings, commentary, site_cfg)
+    context["issue"] = issue
     html = template.render(**context)
 
     Path(args.out).write_text(html)
@@ -86,7 +107,9 @@ def main():
         Path(args.archive).parent.mkdir(parents=True, exist_ok=True)
         # Re-render with path_prefix="../" so the archive's stylesheet
         # link and any other relative asset paths resolve correctly.
+        # Carry the issue number forward so the masthead stays consistent.
         archive_context = build_context(rankings, commentary, site_cfg, path_prefix="../")
+        archive_context["issue"] = issue
         archive_html = template.render(**archive_context)
         Path(args.archive).write_text(archive_html)
         print(f"[render] archived {args.archive}")
