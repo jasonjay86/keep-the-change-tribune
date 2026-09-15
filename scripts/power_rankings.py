@@ -374,20 +374,23 @@ def _build_motw(motw, motw_status, matchups, rosters_by_id, raw_by_id, players_i
     higher projected_points; spread is the projected margin in fantasy points."""
     team_a_row, team_b_row = motw[0], motw[1]
     rid_a, rid_b = team_a_row["roster_id"], team_b_row["roster_id"]
-    pair_matchup = next((m for m in matchups
-                         if m.get("roster_id") in (rid_a, rid_b)
-                         and any(o.get("roster_id") in (rid_a, rid_b) for o in matchups
-                                 if o.get("matchup_id") == m.get("matchup_id"))),
-                        None)
-    proj_a = pair_matchup.get("projected_points") if pair_matchup else None
-    proj_b = None
-    # Find the other side's projected_points
-    if pair_matchup is not None:
-        for m in matchups:
-            if (m.get("matchup_id") == pair_matchup.get("matchup_id")
-                    and m.get("roster_id") != rid_a):
-                proj_b = m.get("projected_points")
-                break
+    # Find both sides of this matchup explicitly. Sleeper's matchups list
+    # has one row per (roster, matchup) pair, so we look up team_a's row
+    # first and then find its counterpart by matchup_id.
+    side_a_row = next((m for m in matchups
+                       if m.get("roster_id") == rid_a
+                       and any(o.get("matchup_id") == m.get("matchup_id")
+                               and o.get("roster_id") == rid_b
+                               for o in matchups)),
+                      None)
+    side_b_row = None
+    if side_a_row is not None:
+        side_b_row = next((o for o in matchups
+                           if o.get("matchup_id") == side_a_row.get("matchup_id")
+                           and o.get("roster_id") == rid_b),
+                          None)
+    proj_a = side_a_row.get("projected_points") if side_a_row else None
+    proj_b = side_b_row.get("projected_points") if side_b_row else None
     spread = None
     if isinstance(proj_a, (int, float)) and isinstance(proj_b, (int, float)):
         spread = round(abs(proj_a - proj_b), 2)
