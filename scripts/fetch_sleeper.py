@@ -45,11 +45,13 @@ def fetch_players_db(force: bool = False) -> dict:
 def slim_player(player: dict) -> dict:
     """Keep only the fields we actually render."""
     return {
-        "name":     f"{player.get('first_name', '')} {player.get('last_name', '')}".strip(),
-        "position": player.get("position") or "?",
-        "team":     player.get("team") or "FA",
-        "status":   player.get("status") or "Active",
-        "injury":   player.get("injury_status"),
+        "name":      f"{player.get('first_name', '')} {player.get('last_name', '')}".strip(),
+        "position":  player.get("position") or "?",
+        "team":      player.get("team") or "FA",
+        "status":    player.get("status") or "Active",
+        "injury":    player.get("injury_status"),
+        "years_exp": player.get("years_exp"),  # 0 = rookie, 1+ = experienced
+        "age":       player.get("age"),
     }
 
 
@@ -109,6 +111,42 @@ def projected_points_for_team(roster: dict, projections: dict, scoring: str = "p
     return round(total, 2)
 
 
+def starter_projected_points(roster: dict, projections: dict, scoring: str = "pts_half_ppr",
+                             league_scoring: dict | None = None) -> dict[str, float]:
+    """
+    Per-starter projected points for a roster's STARTERS. Returns
+    {player_id: projected_points} for every starter that has a projection.
+    Used by power_rankings.py to identify the highest-projected players
+    on each MOTW side (instead of defaulting to the QB+RB1 that Sleeper
+    puts first in lineup order).
+
+    Scoring logic mirrors projected_points_for_team: offense via the
+    pre-computed pts_* field, IDP via raw stats weighted by league settings.
+    """
+    out: dict[str, float] = {}
+    starters = roster.get("starters") or []
+    for pid in starters:
+        proj = projections.get(pid)
+        if not proj:
+            continue
+        total = 0.0
+        pts = proj.get(scoring)
+        if isinstance(pts, (int, float)):
+            total += float(pts)
+        if league_scoring:
+            for stat_key, weight in league_scoring.items():
+                if not stat_key.startswith("idp_"):
+                    continue
+                if not isinstance(weight, (int, float)) or weight == 0:
+                    continue
+                stat_val = proj.get(stat_key)
+                if isinstance(stat_val, (int, float)):
+                    total += float(stat_val) * float(weight)
+        if total > 0:
+            out[pid] = round(total, 2)
+    return out
+
+
 def fetch(league_id: str) -> dict:
     league = _get(f"/league/{league_id}")
     users = _get(f"/league/{league_id}/users")
@@ -151,6 +189,13 @@ def fetch(league_id: str) -> dict:
             rid = m.get("roster_id")
             roster = rosters_by_id.get(rid) or {}
             m["projected_points"] = projected_points_for_team(
+                roster, projections, scoring_field, league_scoring
+            )
+            # Also stash per-starter projected points so power_rankings.py
+            # can highlight the actual top-projected players (not just the
+            # QB+RB1 that Sleeper puts first in lineup order). This drives
+            # the MOTW blurb and Tribune Pick player names.
+            m["starter_projected_points"] = starter_projected_points(
                 roster, projections, scoring_field, league_scoring
             )
 

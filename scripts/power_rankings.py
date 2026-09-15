@@ -161,7 +161,8 @@ def strength_of_schedule(my_roster_id, all_matchups, pf_per_game_by_team, league
         return 1.0
     return (sum(opps_pf) / len(opps_pf)) / league_avg_pf if league_avg_pf else 1.0
 
-def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict, n: int = 2) -> list[dict]:
+def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
+                      n: int = 2, starter_projections: dict[str, float] | None = None) -> list[dict]:
     """
     Choose the top N players from a roster to highlight.
 
@@ -171,10 +172,13 @@ def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
       top N starters by current-week fantasy points. This is "the guys
       who decided the week" — exactly what Madden would name.
     - Otherwise (pre-game week, or live in-progress with all zeros),
-      take the first N starters in lineup order. Sleeper orders
-      starters by fantasy position: QB, RB, WR, TE, K, DEF — so the
-      first two slots are typically QB + RB1, which is exactly who
-      Madden would talk about.
+      pick the top N starters by PROJECTED points (not lineup order).
+      Sleeper orders starters by position (QB, RB, WR, TE, K, DEF), so
+      a naive "first N" returns QB+RB1 regardless of who's actually
+      projected to score — leading to commentary that names the wrong
+      stars. Projected points come from `starter_projections` (a dict
+      {player_id: projected_points} produced by fetch_sleeper's
+      starter_projected_points()).
     - Always resolve player_id -> name/position/team via players_index.
 
     Returns list of {name, position, team, points} dicts.
@@ -206,9 +210,18 @@ def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
             key=lambda ix: (-starter_scores.get(ix[1], 0.0), ix[0]),
         )
         top_ids = [pid for _, pid in indexed[:n]]
+    elif starter_projections:
+        # Pre-game week — rank by PROJECTED points, not lineup order.
+        # This surfaces the actual top-projected players (e.g., a hot
+        # WR3 over a mediocre QB1) instead of always QB+RB1.
+        indexed = sorted(
+            enumerate(starters),
+            key=lambda ix: (-starter_projections.get(ix[1], 0.0), ix[0]),
+        )
+        top_ids = [pid for _, pid in indexed[:n]]
     else:
-        # Pre-game week — take the first N starters in lineup order
-        # (Sleeper puts QB first, then RB1, WR1, etc.)
+        # No projections available (off-season or API outage) — fall back
+        # to lineup order, which puts QB and RB1 first.
         top_ids = starters[:n]
 
     out = []
@@ -217,10 +230,12 @@ def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
         if not info:
             continue
         out.append({
-            "name":     info["name"],
-            "position": info["position"],
-            "team":     info["team"],
-            "points":   round(starter_scores.get(pid, 0.0), 1),
+            "name":      info["name"],
+            "position":  info["position"],
+            "team":      info["team"],
+            "points":    round(starter_scores.get(pid, 0.0), 1),
+            "years_exp": info.get("years_exp"),  # 0 = rookie, 1+ = experienced; None = unknown
+            "age":       info.get("age"),
         })
     return out
 
@@ -401,21 +416,24 @@ def _build_motw(motw, motw_status, matchups, rosters_by_id, raw_by_id, players_i
     else:
         proj_favorite, proj_underdog = None, None
 
-    def side(team_row, roster_id, proj_pts):
+    def side(team_row, roster_id, proj_pts, proj_starter_pts):
         return {
             "name":   team_row["owner"]["display_name"],
             "team":   team_row["owner"]["team_name"],
             "rank":   team_row["rank"],
             "score":  team_row["power_score"],
-            "record": f"{team_row['wins']}-{team_row['losses']}" + (f"-{team_row['ties']}" if team_row['ties'] else ""),
-            "key_players": pick_key_players(raw_by_id[roster_id], current_matchups, players_index, n=2),
+            "record": f"{team_row['wins']}-{team_row['losses']}" + (f"-{team_row['ties']}" if team_row.get("ties") else ""),
+            "key_players": pick_key_players(raw_by_id[roster_id], current_matchups, players_index, n=2,
+                                          starter_projections=proj_starter_pts),
             **({"projected_points": round(proj_pts, 2)} if isinstance(proj_pts, (int, float)) else {}),
         }
 
     payload = {
         "status": motw_status,
-        "team_a": side(team_a_row, rid_a, proj_a),
-        "team_b": side(team_b_row, rid_b, proj_b),
+        "team_a": side(team_a_row, rid_a, proj_a,
+                       (side_a_row or {}).get("starter_projected_points") or {}),
+        "team_b": side(team_b_row, rid_b, proj_b,
+                       (side_b_row or {}).get("starter_projected_points") or {}),
     }
     if spread is not None:
         payload["projected_spread"]   = spread
