@@ -454,15 +454,30 @@ def main():
     user_prompt = build_user_prompt(rankings, cfg, context, personal_bits=chosen_bits)
 
     if args.dry_run or not os.environ.get("MINIMAX_API_KEY"):
-        # Even in stub mode, fill in the pick from the projected spread so
-        # the Tribune never goes without a betting line.
-        stub = dict(STUB_FALLBACK)
-        # Find the original pick (might be set by user before stub returned).
-        if not isinstance(stub.get("pick"), dict) or not stub["pick"].get("favorite") or stub["pick"]["favorite"] == "—":
-            stub["pick"] = _fallback_pick(rankings, stub) or stub.get("pick", STUB_FALLBACK["pick"])
-        Path(args.out).write_text(json.dumps(stub, indent=2))
-        print(f"[llm_commentary] wrote {args.out} (stub, no API key) — pick filled from projections")
-        return
+            # Even in stub mode, fill in the pick from the projected spread so
+            # the Tribune never goes without a betting line.
+            stub = dict(STUB_FALLBACK)
+            # Derive motw_blurb from the actual matchup_of_week so the stub
+            # text always references this week's two teams, not a hardcoded
+            # preseason placeholder.
+            motw = (rankings or {}).get("matchup_of_week") or {}
+            if motw.get("team_a") and motw.get("team_b"):
+                ta = motw["team_a"]; tb = motw["team_b"]
+                ta_team = ta.get("team") or ta.get("name") or "team_a"
+                tb_team = tb.get("team") or tb.get("name") or "team_b"
+                ta_rank = ta.get("rank", "?"); tb_rank = tb.get("rank", "?")
+                stub["motw_blurb"] = (
+                    f"BOOM — {ta_team} (#{ta_rank}) and {tb_team} "
+                    f"(#{tb_rank}), and this is the one the Tribune's "
+                    f"watching. Big board at the top, somebody's gotta "
+                    f"blink. We'll see who Sunday."
+                )
+            # Find the original pick (might be set by user before stub returned).
+            if not isinstance(stub.get("pick"), dict) or not stub["pick"].get("favorite") or stub["pick"]["favorite"] == "—":
+                stub["pick"] = _fallback_pick(rankings, stub) or stub.get("pick", STUB_FALLBACK["pick"])
+            Path(args.out).write_text(json.dumps(stub, indent=2))
+            print(f"[llm_commentary] wrote {args.out} (stub, no API key) — pick filled from projections")
+            return
 
     raw = call_minimax(
             system=SYSTEM_PROMPT,
@@ -515,12 +530,26 @@ def _fallback_pick(rankings: dict, commentary: dict) -> dict | None:
     when the LLM omits the pick or returns a malformed one. Favorite gets
     a negative spread (Vegas convention), underdog gets positive. Blurb is
     a short Madden-voice stub.
+
+    If the projected spread is 0 or missing (e.g. tied projections early
+    in the week), fall back to picking the higher-ranked team (team_a) with
+    a small synthetic favorite spread of 3 — never return None. The Tribune
+    editorial policy ships a deterministic placeholder rather than an empty
+    box, so the Tribune Pick section must always have a real team in it.
     """
     motw = (rankings or {}).get("matchup_of_week") or {}
-    spread = motw.get("projected_spread")
-    if not isinstance(spread, (int, float)) or spread == 0:
+    if not motw or not (motw.get("team_a") and motw.get("team_b")):
         return None
-    fav_side = motw.get("projected_favorite") or "team_a"
+    spread_raw = motw.get("projected_spread")
+    if not isinstance(spread_raw, (int, float)) or spread_raw == 0:
+        # Tie or no projections — synthesize a small favorite line.
+        spread = 3.0
+        fav_side = "team_a"
+    else:
+        spread = float(spread_raw)
+        fav_side = motw.get("projected_favorite") or (
+            "team_a" if spread >= 0 else "team_b"
+        )
     fav = motw.get(fav_side) or {}
     under_side = "team_b" if fav_side == "team_a" else "team_a"
     under = motw.get(under_side) or {}
@@ -528,8 +557,8 @@ def _fallback_pick(rankings: dict, commentary: dict) -> dict | None:
     under_name = under.get("team") or under.get("name") or under_side
     return {
         "favorite": fav_name,
-        "spread": -round(float(spread), 2),  # favorite is negative (Vegas)
-        "blurb": f"BOOM — {fav_name} lays {round(float(spread), 1)} on the road against {under_name}. Tribune calls it straight up. Cook the books.",
+        "spread": -round(spread, 2),  # favorite is negative (Vegas)
+        "blurb": f"BOOM — {fav_name} lays {round(spread, 1)} on the road against {under_name}. Tribune calls it straight up. Cook the books.",
     }
 
 
