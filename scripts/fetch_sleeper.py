@@ -68,24 +68,44 @@ def fetch_weekly_projections(season: int, week: int) -> dict:
     return data
 
 
-def projected_points_for_team(roster: dict, projections: dict, scoring: str = "pts_half_ppr") -> float:
+def projected_points_for_team(roster: dict, projections: dict, scoring: str = "pts_half_ppr",
+                               league_scoring: dict | None = None) -> float:
     """
     Sum projected fantasy points for a roster's STARTERS (the lineup actually
-    fielded in a given week). `scoring` selects which projection field to use
-    ('pts_half_ppr' for the standard KTC half-PPR, 'pts_std' for standard,
-    'pts_ppr' for full PPR).
+    fielded in a given week). `scoring` selects the primary offense scoring
+    field ('pts_half_ppr' for half PPR, 'pts_std' for standard, 'pts_ppr'
+    for full PPR). If `league_scoring` is provided, IDP scoring is applied
+    on top — matching what Sleeper shows on the league page.
+
+    Sleeper's pre-computed `pts_*` fields are offense-only (QB/RB/WR/TE/K).
+    IDP scoring (tackles, sacks, ints, etc.) is computed separately from
+    raw projection stats weighted by league settings. Without league_scoring
+    this function returns offense-only points — which under-reports IDP-heavy
+    leagues.
     """
-    if not projections:
-        return 0.0
     starters = roster.get("starters") or []
     total = 0.0
     for pid in starters:
         proj = projections.get(pid)
         if not proj:
             continue
+        # Offense scoring from the pre-computed field — covers QB/RB/WR/TE/K
+        # with all standard yardage, TD, reception, and bonus weights baked in.
         pts = proj.get(scoring)
         if isinstance(pts, (int, float)):
             total += float(pts)
+        # IDP scoring from raw stats weighted by league settings.
+        # Only idp_* fields are added here; standard offense stats are
+        # already covered by pts_half_ppr above (avoid double-counting).
+        if league_scoring:
+            for stat_key, weight in league_scoring.items():
+                if not stat_key.startswith("idp_"):
+                    continue
+                if not isinstance(weight, (int, float)) or weight == 0:
+                    continue
+                stat_val = proj.get(stat_key)
+                if isinstance(stat_val, (int, float)):
+                    total += float(stat_val) * float(weight)
     return round(total, 2)
 
 
@@ -120,13 +140,19 @@ def fetch(league_id: str) -> dict:
     projections = fetch_weekly_projections(season, week)
     if projections:
         # KTC is half-PPR per the 2026 league config; keep that explicit.
+        # Pass league_scoring so IDP and other custom scoring weights are
+        # applied — without this, IDP-heavy leagues under-report projections
+        # (offense-only pts_half_ppr misses tackles/sacks/ints/etc.).
         scoring_field = "pts_half_ppr"
+        league_scoring = league.get("scoring_settings") or {}
         rosters_by_id = {r["roster_id"]: r for r in rosters}
         # Attach per-matchup projected scores so the pick step can compute spread
         for m in matchups:
             rid = m.get("roster_id")
             roster = rosters_by_id.get(rid) or {}
-            m["projected_points"] = projected_points_for_team(roster, projections, scoring_field)
+            m["projected_points"] = projected_points_for_team(
+                roster, projections, scoring_field, league_scoring
+            )
 
         # Group matchups by matchup_id and attach projected_spread per pair
         from collections import defaultdict
