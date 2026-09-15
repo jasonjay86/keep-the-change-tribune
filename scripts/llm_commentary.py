@@ -410,25 +410,156 @@ def call_minimax(system: str, user: str, model: str, base_url: str, api_key: str
 
 STUB_FALLBACK = {
     "lede": {
-        "headline": "BOOM — Week One",
-        "deck":     "Twelve teams, zero games, all tied up. The Tribune is on the couch.",
-        "body":     "Alright, alright, here we are. Twelve managers, twelve rosters, twelve zeroes across the board. You can't tell me anything yet — nobody's played. It's like trying to call a baseball game when the pitcher's still in the dugout. We got the brothers squaring off. We got the old man in there. We got the new guy, Trey, who I haven't seen enough tape on. That's gonna be the year. Let's watch some football.",
+        "headline": "BOOM — Power Rankings",
+        "deck":     "Stub fallback — live model did not run this edition.",
+        "body":     "Alright, here's what we got. The Tribune's printing on a short bench this week, so you're getting the deterministic stub. Numbers in the tables below are real; the words around them are not. Coach'll fix it Tuesday.",
     },
-    "motw_blurb":     "BOOM — Jason versus the east-coast brother. This is the one. Commissioner's club against the eldest. Blood on the field, kinda. Dad's watching. The new guy has the byline too if he wants it.",
+    "motw_blurb":     "Stub fallback: live model did not run.",
     "pick": {
         "favorite": "—",
         "spread": 0,
         "blurb":   "[STUB — no LLM pick this edition; live model did not run]",
     },
-    "rankings_blurb": "Now watch this — here's a guy who's ranked number one. And here's another guy ranked number one. They're all ranked number one, that's the problem. Tiebreakers? None. Schedule? Same. Power score? Fifty flat, the whole board. You can't rank 'em yet. You just gotta play 'em.",
+    "rankings_blurb": "Stub fallback: rankings walk will be added back when the live model runs.",
     "by_the_numbers": [
-        {"value": "12", "label": "Coaches Drawing Up Plays"},
-        {"value": "0",  "label": "Games In The Books"},
-        {"value": "1",  "label": "Brother-on-Brother Battle Looming"},
-        {"value": "?",  "label": "Predictions From The Tribune"},
+        {"value": "12", "label": "Teams in the Hunt"},
+        {"value": "?",  "label": "Top Power Score"},
+        {"value": "?",  "label": "Cellar Power Score"},
+        {"value": "?",  "label": "Week Number"},
     ],
-    "closing": "That's the week. Same couch, same friends, next Tuesday. BOOM.",
+    "closing": "That's the stub. Live model will be back Tuesday.",
 }
+
+
+def _team_label(team_row: dict) -> str:
+    """Best display label for a rankings row."""
+    o = team_row.get("owner") or {}
+    return o.get("team_name") or o.get("display_name") or "Unknown"
+
+
+def _owner_label(team_row: dict) -> str:
+    o = team_row.get("owner") or {}
+    return o.get("display_name") or ""
+
+
+def build_dynamic_stub(rankings: dict) -> dict | None:
+    """
+    Build a deterministic stub commentary from the live rankings.json —
+    same shape the live LLM produces, but with real Week-N data instead
+    of frozen preseason lines. Used whenever MINIMAX_API_KEY is unset so
+    the page reads current state until the live model runs.
+
+    Returns None if rankings is too empty to write anything meaningful;
+    caller should fall back to STUB_FALLBACK in that case.
+    """
+    rs = rankings.get("rankings") or []
+    if not rs:
+        return None
+    week = rankings.get("week") or "?"
+    top = rs[0]
+    second = rs[1] if len(rs) > 1 else None
+    bottom = rs[-1]
+    second_last = rs[-2] if len(rs) > 1 else None
+
+    top_team = _team_label(top)
+    top_owner = _owner_label(top)
+    top_record = f"{top.get('wins', 0)}-{top.get('losses', 0)}"
+    top_pf = round(top.get("points_for") or 0, 1)
+    top_power = round(top.get("power_score") or 0, 1)
+
+    bottom_team = _team_label(bottom)
+    bottom_record = f"{bottom.get('wins', 0)}-{bottom.get('losses', 0)}"
+    bottom_pf = round(bottom.get("points_for") or 0, 1)
+
+    second_team = _team_label(second) if second else None
+    second_power = round((second or {}).get("power_score") or 0, 1) if second else None
+
+    # --- Lede ---
+    headline = f"BOOM — Week {week}, and {top_team}'s on top"
+    deck = (
+        f"{top_team} ({top_record}) sits at #1 with {top_pf} points and a "
+        f"{top_power} Power score. Twelve teams, one week in the books."
+    )
+    if second:
+        body = (
+            f"Alright, alright, here we are, week {week}. {top_team} — that's "
+            f"{top_owner or 'the top dog'} — sits at number one with a "
+            f"{top_record} record and {top_pf} on the scoreboard. "
+            f"{second_team} is right behind at #2 with a {second_power} "
+            f"Power score, so don't get comfortable up there. "
+            f"Bottom of the page: {bottom_team}, {bottom_record}, "
+            f"{bottom_pf} points. Bang-bang. Let's get into it."
+        )
+    else:
+        body = (
+            f"Alright, here we go, week {week}. {top_team} at number one, "
+            f"{top_record} on the year, {top_pf} points on the board. "
+            f"Twelve teams, one rung each. Bang-bang."
+        )
+
+    # --- MOTW blurb (uses the existing derived motw_blurb from main() if
+    # we ever want to move it here; for now, derive inline) ---
+    motw = rankings.get("matchup_of_week") or {}
+    motw_blurb = ""
+    if motw.get("team_a") and motw.get("team_b"):
+        ta = motw["team_a"]; tb = motw["team_b"]
+        ta_team = ta.get("team") or ta.get("name") or _team_label({"owner": {}})
+        tb_team = tb.get("team") or tb.get("name") or _team_label({"owner": {}})
+        ta_rank = ta.get("rank", "?"); tb_rank = tb.get("rank", "?")
+        ta_proj = ta.get("projected_points"); tb_proj = tb.get("projected_points")
+        if isinstance(ta_proj, (int, float)) and isinstance(tb_proj, (int, float)):
+            motw_blurb = (
+                f"BOOM — {ta_team} (#{ta_rank}) at {round(ta_proj,1)} projected "
+                f"and {tb_team} (#{tb_rank}) at {round(tb_proj,1)}. "
+                f"Big board at the top, somebody's gotta blink. We'll see who Sunday."
+            )
+        else:
+            motw_blurb = (
+                f"BOOM — {ta_team} (#{ta_rank}) and {tb_team} (#{tb_rank}), "
+                f"and this is the one the Tribune's watching. Big board at the "
+                f"top, somebody's gotta blink. We'll see who Sunday."
+            )
+
+    # --- Rankings blurb ---
+    if second_last:
+        second_last_team = _team_label(second_last)
+        second_last_record = f"{second_last.get('wins', 0)}-{second_last.get('losses', 0)}"
+        rankings_blurb = (
+            f"Now watch this — {top_team} at number one, "
+            f"{second_team} at two, and {second_last_team} at eleven ({second_last_record}). "
+            f"{bottom_team} at the bottom ({bottom_record}). "
+            f"It's a long season. Twelve teams, only one trophy, and a lot of "
+            f"tape to watch between now and December."
+        )
+    else:
+        rankings_blurb = (
+            f"Now watch this — {top_team} at number one, "
+            f"{bottom_team} at the bottom. It's a long season, and the board's "
+            f"gonna move every Tuesday. Twelve teams, only one trophy."
+        )
+
+    # --- By the numbers ---
+    by_the_numbers = [
+        {"value": str(top_power),  "label": "Top Power Score"},
+        {"value": str(round((rs[-1].get("power_score") or 0), 1)), "label": "Cellar Power Score"},
+        {"value": str(len(rs)),    "label": "Teams in the Hunt"},
+        {"value": str(week),       "label": "Week Number"},
+    ]
+
+    # --- Closing ---
+    closing = (
+        f"That's week {week}, folks. Same couch, same friends, next Tuesday. BOOM."
+    )
+
+    out = {
+        "lede": {"headline": headline, "deck": deck, "body": body},
+        "rankings_blurb": rankings_blurb,
+        "by_the_numbers": by_the_numbers,
+        "closing": closing,
+    }
+    if motw_blurb:
+        out["motw_blurb"] = motw_blurb
+    return out
 
 
 def main():
@@ -454,24 +585,13 @@ def main():
     user_prompt = build_user_prompt(rankings, cfg, context, personal_bits=chosen_bits)
 
     if args.dry_run or not os.environ.get("MINIMAX_API_KEY"):
-            # Even in stub mode, fill in the pick from the projected spread so
-            # the Tribune never goes without a betting line.
-            stub = dict(STUB_FALLBACK)
-            # Derive motw_blurb from the actual matchup_of_week so the stub
-            # text always references this week's two teams, not a hardcoded
-            # preseason placeholder.
-            motw = (rankings or {}).get("matchup_of_week") or {}
-            if motw.get("team_a") and motw.get("team_b"):
-                ta = motw["team_a"]; tb = motw["team_b"]
-                ta_team = ta.get("team") or ta.get("name") or "team_a"
-                tb_team = tb.get("team") or tb.get("name") or "team_b"
-                ta_rank = ta.get("rank", "?"); tb_rank = tb.get("rank", "?")
-                stub["motw_blurb"] = (
-                    f"BOOM — {ta_team} (#{ta_rank}) and {tb_team} "
-                    f"(#{tb_rank}), and this is the one the Tribune's "
-                    f"watching. Big board at the top, somebody's gotta "
-                    f"blink. We'll see who Sunday."
-                )
+            # Dynamic stub first: build a real-data stub from rankings.json so
+            # the page reads current state instead of frozen preseason lines.
+            # STUB_FALLBACK only fires if the dynamic builder can't read the
+            # rankings at all (e.g. data.json corruption).
+            stub = build_dynamic_stub(rankings) or dict(STUB_FALLBACK)
+            # motw_blurb: the dynamic builder already sets this from the live
+            # matchup_of_week. Don't overwrite it.
             # Find the original pick (might be set by user before stub returned).
             if not isinstance(stub.get("pick"), dict) or not stub["pick"].get("favorite") or stub["pick"]["favorite"] == "—":
                 stub["pick"] = _fallback_pick(rankings, stub) or stub.get("pick", STUB_FALLBACK["pick"])
