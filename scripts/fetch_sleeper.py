@@ -53,6 +53,42 @@ def slim_player(player: dict) -> dict:
     }
 
 
+def fetch_weekly_projections(season: int, week: int) -> dict:
+    """
+    Sleeper publishes per-player weekly projections at
+    /projections/nfl/regular/{season}/{week}. Each entry has fields like
+    pts_half_ppr, pts_ppr, pts_std, plus the stat breakdown.
+    Returns {player_id: projection_dict} for the ~600 players on the slate.
+    """
+    try:
+        data = _get(f"/projections/nfl/regular/{season}/{week}")
+    except Exception as e:
+        print(f"[fetch_sleeper] WARN: projections fetch failed ({e}); falling back to zero projections", file=sys.stderr)
+        return {}
+    return data
+
+
+def projected_points_for_team(roster: dict, projections: dict, scoring: str = "pts_half_ppr") -> float:
+    """
+    Sum projected fantasy points for a roster's STARTERS (the lineup actually
+    fielded in a given week). `scoring` selects which projection field to use
+    ('pts_half_ppr' for the standard KTC half-PPR, 'pts_std' for standard,
+    'pts_ppr' for full PPR).
+    """
+    if not projections:
+        return 0.0
+    starters = roster.get("starters") or []
+    total = 0.0
+    for pid in starters:
+        proj = projections.get(pid)
+        if not proj:
+            continue
+        pts = proj.get(scoring)
+        if isinstance(pts, (int, float)):
+            total += float(pts)
+    return round(total, 2)
+
+
 def fetch(league_id: str) -> dict:
     league = _get(f"/league/{league_id}")
     users = _get(f"/league/{league_id}/users")
@@ -61,6 +97,7 @@ def fetch(league_id: str) -> dict:
     # Current week + season status from the NFL state endpoint
     nfl_state = _get("/state/nfl")
     week = nfl_state.get("week", 1)
+    season = nfl_state.get("season") or league.get("season") or 2026
 
     matchups = _get(f"/league/{league_id}/matchups/{week}")
 
@@ -77,6 +114,41 @@ def fetch(league_id: str) -> dict:
         if pid in players_db
     }
 
+    # Weekly projections — used to compute per-team projected points and
+    # hence a real point spread even when no games have been played yet.
+    # League scoring comes from league.settings (e.g. best ball, half PPR).
+    projections = fetch_weekly_projections(season, week)
+    if projections:
+        # KTC is half-PPR per the 2026 league config; keep that explicit.
+        scoring_field = "pts_half_ppr"
+        rosters_by_id = {r["roster_id"]: r for r in rosters}
+        # Attach per-matchup projected scores so the pick step can compute spread
+        for m in matchups:
+            rid = m.get("roster_id")
+            roster = rosters_by_id.get(rid) or {}
+            m["projected_points"] = projected_points_for_team(roster, projections, scoring_field)
+
+        # Group matchups by matchup_id and attach projected_spread per pair
+        from collections import defaultdict
+        by_matchup = defaultdict(list)
+        for m in matchups:
+            by_matchup[m.get("matchup_id")].append(m)
+        for mid, pair in by_matchup.items():
+            if len(pair) == 2:
+                pts_pair = sorted([p.get("projected_points", 0.0) for p in pair], reverse=True)
+                # Spread = top - bottom, attached to whichever team is favored
+                spread = round(pts_pair[0] - pts_pair[1], 2)
+                for p in pair:
+                    p["opponent_projected_points"] = pts_pair[1] if p.get("projected_points") == pts_pair[0] else pts_pair[0]
+                    # Favored team gets a NEGATIVE spread (Vegas convention from the LLM prompt)
+                    if p.get("projected_points") == pts_pair[0]:
+                        p["projected_spread"] = -spread  # favorite: negative
+                    else:
+                        p["projected_spread"] = spread   # underdog: positive
+                # Same spread on both sides
+                for p in pair:
+                    p["matchup_projected_spread"] = spread
+
     return {
         "league": league,
         "users": users,
@@ -84,6 +156,8 @@ def fetch(league_id: str) -> dict:
         "matchups": matchups,
         "nfl_state": nfl_state,
         "players_index": players_index,
+        "projections_available": bool(projections),
+        "scoring_format": "half_ppr",
     }
 
 def main():

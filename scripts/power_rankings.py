@@ -255,13 +255,21 @@ def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = No
             a = next((r for r in enriched if r["roster_id"] == rids[0]), None)
             b = next((r for r in enriched if r["roster_id"] == rids[1]), None)
             if a and b:
-                preview_motw = {
-                    "status": "preview",
-                    "team_a": {"name": a["owner"]["display_name"], "team": a["owner"]["team_name"], "rank": 0, "score": 50.0, "record": "0-0",
-                               "key_players": pick_key_players(raw_by_id[rids[0]], current_matchups, players_index, n=2)},
-                    "team_b": {"name": b["owner"]["display_name"], "team": b["owner"]["team_name"], "rank": 0, "score": 50.0, "record": "0-0",
-                               "key_players": pick_key_players(raw_by_id[rids[1]], current_matchups, players_index, n=2)},
-                }
+                # Build a synthetic motw tuple so _build_motw can attach the
+                # projected spread from data.json.
+                synthetic_motw = (a, b)
+                # _build_motw expects ranked rows with 'rank', 'power_score', 'record' set.
+                # The early-return path hasn't run normalization yet, so fill in zeros
+                # and reset them back after the helper runs.
+                a_for_helper = {**a, "rank": 0, "power_score": 50.0, "wins": 0, "losses": 0, "ties": 0}
+                b_for_helper = {**b, "rank": 0, "power_score": 50.0, "wins": 0, "losses": 0, "ties": 0}
+                preview_motw = _build_motw(
+                    (a_for_helper, b_for_helper), "preview", bundle.get("matchups") or [],
+                    raw_by_id, raw_by_id, players_index, current_matchups,
+                )
+                # Override ranks to 0 (no real season stats yet) but keep projected spread
+                preview_motw["team_a"]["rank"] = 0
+                preview_motw["team_b"]["rank"] = 0
         return {
             "league": bundle["league"]["name"],
             "week":   bundle["nfl_state"].get("week"),
@@ -354,23 +362,62 @@ def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = No
         "season_type": bundle["nfl_state"].get("season_type"),
         "rankings": ranked,
         "matchup_of_week": (
-            {
-                "status": motw_status,
-                "team_a": {"name": motw[0]["owner"]["display_name"],
-                           "team":  motw[0]["owner"]["team_name"],
-                           "rank":  motw[0]["rank"],
-                           "score": motw[0]["power_score"],
-                           "record": f"{motw[0]['wins']}-{motw[0]['losses']}" + (f"-{motw[0]['ties']}" if motw[0]['ties'] else ""),
-                           "key_players": pick_key_players(raw_by_id[motw[0]["roster_id"]], current_matchups, players_index, n=2)},
-                "team_b": {"name": motw[1]["owner"]["display_name"],
-                           "team":  motw[1]["owner"]["team_name"],
-                           "rank":  motw[1]["rank"],
-                           "score": motw[1]["power_score"],
-                           "record": f"{motw[1]['wins']}-{motw[1]['losses']}" + (f"-{motw[1]['ties']}" if motw[1]['ties'] else ""),
-                           "key_players": pick_key_players(raw_by_id[motw[1]["roster_id"]], current_matchups, players_index, n=2)},
-            } if motw else None
+            _build_motw(motw, motw_status, matchups, raw_by_id, raw_by_id, players_index, current_matchups)
+            if motw else None
         ),
     }
+
+
+def _build_motw(motw, motw_status, matchups, rosters_by_id, raw_by_id, players_index, current_matchups):
+    """Build the matchup-of-the-week payload, enriched with projected spread
+    (when no games have been played yet). The favorite is determined by the
+    higher projected_points; spread is the projected margin in fantasy points."""
+    team_a_row, team_b_row = motw[0], motw[1]
+    rid_a, rid_b = team_a_row["roster_id"], team_b_row["roster_id"]
+    pair_matchup = next((m for m in matchups
+                         if m.get("roster_id") in (rid_a, rid_b)
+                         and any(o.get("roster_id") in (rid_a, rid_b) for o in matchups
+                                 if o.get("matchup_id") == m.get("matchup_id"))),
+                        None)
+    proj_a = pair_matchup.get("projected_points") if pair_matchup else None
+    proj_b = None
+    # Find the other side's projected_points
+    if pair_matchup is not None:
+        for m in matchups:
+            if (m.get("matchup_id") == pair_matchup.get("matchup_id")
+                    and m.get("roster_id") != rid_a):
+                proj_b = m.get("projected_points")
+                break
+    spread = None
+    if isinstance(proj_a, (int, float)) and isinstance(proj_b, (int, float)):
+        spread = round(abs(proj_a - proj_b), 2)
+        if proj_a >= proj_b:
+            proj_favorite, proj_underdog = "team_a", "team_b"
+        else:
+            proj_favorite, proj_underdog = "team_b", "team_a"
+    else:
+        proj_favorite, proj_underdog = None, None
+
+    def side(team_row, roster_id, proj_pts):
+        return {
+            "name":   team_row["owner"]["display_name"],
+            "team":   team_row["owner"]["team_name"],
+            "rank":   team_row["rank"],
+            "score":  team_row["power_score"],
+            "record": f"{team_row['wins']}-{team_row['losses']}" + (f"-{team_row['ties']}" if team_row['ties'] else ""),
+            "key_players": pick_key_players(raw_by_id[roster_id], current_matchups, players_index, n=2),
+            **({"projected_points": round(proj_pts, 2)} if isinstance(proj_pts, (int, float)) else {}),
+        }
+
+    payload = {
+        "status": motw_status,
+        "team_a": side(team_a_row, rid_a, proj_a),
+        "team_b": side(team_b_row, rid_b, proj_b),
+    }
+    if spread is not None:
+        payload["projected_spread"]   = spread
+        payload["projected_favorite"] = proj_favorite  # "team_a" or "team_b"
+    return payload
 
 def main():
     ap = argparse.ArgumentParser()

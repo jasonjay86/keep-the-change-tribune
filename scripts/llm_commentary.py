@@ -89,7 +89,10 @@ OUTPUT — strict JSON, exact shape:
                                   "rankings_blurb", "by_the_numbers", "closing"
 - lede:           OBJECT with "headline" (string), "deck" (string),
                     "body" (string, ~90 words)
-- motw_blurb:     STRING, plain prose, ~70 words
+- motw_blurb:     STRING, plain prose, ~70 words. If the data includes
+                    projected_points and projected_spread for the MOTW
+                    teams, MENTION them — that's the betting line the
+                    Tribune is built around.
 - pick:           OBJECT with:
                     "favorite"   (string, must be the team name or
                                   generic team name of one of the
@@ -103,6 +106,13 @@ OUTPUT — strict JSON, exact shape:
                                   underdog with the points, write it
                                   as a positive number. Range roughly
                                   3 to 30.)
+                                  **IMPORTANT**: the data includes a
+                                  pre-computed projected_spread and
+                                  projected_favorite in the matchup_of_week
+                                  payload. Use those numbers as your
+                                  baseline — adjust up to ±3 points if
+                                  you have an opinion, but never invent
+                                  a number out of thin air.
                     "blurb"      (string, ~25-35 words, Madden betting
                                   voice. State the pick in your own
                                   words, give a sentence or two of
@@ -275,11 +285,19 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
 def _motw_payload(motw):
     if not motw:
         return None
-    return {
+    payload = {
         "status": motw["status"],
         "team_a": motw["team_a"],
         "team_b": motw["team_b"],
     }
+    # Projected spread — when no games have been played yet, this is the
+    # only data the Tribune has to pick from. Pass it explicitly so the
+    # LLM can produce a pick, and so the deterministic fallback can be
+    # seeded with the right number.
+    if "projected_spread" in motw:
+        payload["projected_spread"]   = motw["projected_spread"]
+        payload["projected_favorite"] = motw.get("projected_favorite")
+    return payload
 
 
 def extract_json(text: str) -> dict:
@@ -436,8 +454,14 @@ def main():
     user_prompt = build_user_prompt(rankings, cfg, context, personal_bits=chosen_bits)
 
     if args.dry_run or not os.environ.get("MINIMAX_API_KEY"):
-        Path(args.out).write_text(json.dumps(STUB_FALLBACK, indent=2))
-        print(f"[llm_commentary] wrote {args.out} (stub, no API key)")
+        # Even in stub mode, fill in the pick from the projected spread so
+        # the Tribune never goes without a betting line.
+        stub = dict(STUB_FALLBACK)
+        # Find the original pick (might be set by user before stub returned).
+        if not isinstance(stub.get("pick"), dict) or not stub["pick"].get("favorite") or stub["pick"]["favorite"] == "—":
+            stub["pick"] = _fallback_pick(rankings, stub) or stub.get("pick", STUB_FALLBACK["pick"])
+        Path(args.out).write_text(json.dumps(stub, indent=2))
+        print(f"[llm_commentary] wrote {args.out} (stub, no API key) — pick filled from projections")
         return
 
     raw = call_minimax(
@@ -469,13 +493,44 @@ def main():
             print(f"[llm_commentary] pick malformed: {pk}. Dropping pick.", file=sys.stderr)
             commentary["pick"] = None
     elif pk is None:
-        pass  # LLM omitted it intentionally
+        # LLM omitted the pick — fill it in deterministically from the
+        # projected spread in rankings.json so the Tribune never goes
+        # without a betting line.
+        commentary["pick"] = _fallback_pick(rankings, commentary)
     else:
         # Unexpected type
         commentary["pick"] = None
 
+    # If the LLM also left pick=null for any reason, also fill from fallback
+    if commentary.get("pick") is None:
+        commentary["pick"] = _fallback_pick(rankings, commentary)
+
     Path(args.out).write_text(json.dumps(commentary, indent=2))
     print(f"[llm_commentary] wrote {args.out} (from API)")
+
+
+def _fallback_pick(rankings: dict, commentary: dict) -> dict | None:
+    """
+    Build a deterministic pick from the projected spread in rankings.json
+    when the LLM omits the pick or returns a malformed one. Favorite gets
+    a negative spread (Vegas convention), underdog gets positive. Blurb is
+    a short Madden-voice stub.
+    """
+    motw = (rankings or {}).get("matchup_of_week") or {}
+    spread = motw.get("projected_spread")
+    if not isinstance(spread, (int, float)) or spread == 0:
+        return None
+    fav_side = motw.get("projected_favorite") or "team_a"
+    fav = motw.get(fav_side) or {}
+    under_side = "team_b" if fav_side == "team_a" else "team_a"
+    under = motw.get(under_side) or {}
+    fav_name = fav.get("team") or fav.get("name") or fav_side
+    under_name = under.get("team") or under.get("name") or under_side
+    return {
+        "favorite": fav_name,
+        "spread": -round(float(spread), 2),  # favorite is negative (Vegas)
+        "blurb": f"BOOM — {fav_name} lays {round(float(spread), 1)} on the road against {under_name}. Tribune calls it straight up. Cook the books.",
+    }
 
 
 if __name__ == "__main__":
