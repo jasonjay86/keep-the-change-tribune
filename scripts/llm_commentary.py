@@ -266,6 +266,13 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
 
     motw_payload = _motw_payload(motw)
 
+    # Lead with the week number explicitly. Models occasionally carry over
+    # a previous league's week number if they ran just before this call
+    # (e.g. KTC's Week 2 commentary bleeding into Fantrax's Week 1). Making
+    # this the very first line of the user prompt forces the model to anchor
+    # on it.
+    week_header = f"THIS IS WEEK {wk} OF THE {season_type.upper()} SEASON.\n"
+
     payload = {
         "league":              league_name,
         "season":              rankings.get("season"),
@@ -285,7 +292,7 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
             for bit in personal_bits
         ]
 
-    return json.dumps(payload, indent=2)
+    return week_header + json.dumps(payload, indent=2)
 
 
 def _motw_payload(motw):
