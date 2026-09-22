@@ -240,8 +240,150 @@ def pick_key_players(roster: dict, matchups_for_week: list, players_index: dict,
     return out
 
 
+def _build_last_week_results(last_week: int | None,
+                              last_week_matchups: list | None,
+                              raw_by_id: dict) -> dict | None:
+    """
+    Build a last-week recap payload from completed matchups.
+
+    Used by the LLM commentary to recap PRIOR week's action in the lede
+    (top of the page) and surface interesting stats in the by-the-numbers
+    boxes (bottom). Computed from the previous-week matchups that
+    fetch_sleeper.py pulled alongside the current week.
+
+    Returns None when:
+      - last_week_matchups is empty/missing (week 1, off-season, fetch
+        failure)
+      - all matchup points are 0 (games not yet played — leave the
+        commentary stub to deal with it gracefully)
+
+    Returns a dict:
+      {
+        "week": int,
+        "results": [
+          {"winner": "Team Name", "winner_points": float, "loser": "Team Name",
+           "loser_points": float, "margin": float, "winner_rank": int,
+           "loser_rank": int, "was_upset": bool}
+        ],
+        "top_scorer": {"team": str, "points": float, "rank": int},
+        "biggest_blowout": {"winner": str, "loser": str, "margin": float},
+        "closest_game":   {"winner": str, "loser": str, "margin": float},
+        "biggest_upset":  {"winner": str, "loser": str, "winner_rank": int,
+                           "loser_rank": int} | None,
+      }
+    """
+    if not last_week_matchups or last_week is None:
+        return None
+
+    # Only consider matchups with actual scoring data. Sleeper's `points`
+    # field is 0.0 for upcoming games; for past weeks it's populated.
+    scored = [m for m in last_week_matchups
+              if isinstance(m.get("points"), (int, float)) and m.get("points") > 0]
+    if not scored:
+        return None
+
+    # Group by matchup_id so we can pair winners vs losers.
+    by_mid = defaultdict(list)
+    for m in scored:
+        mid = m.get("matchup_id")
+        if mid is not None:
+            by_mid[mid].append(m)
+
+    results = []
+    for mid, sides in by_mid.items():
+        if len(sides) != 2:
+            continue
+        a, b = sides
+        pa = float(a.get("points") or 0)
+        pb = float(b.get("points") or 0)
+        if pa == pb:
+            continue  # skip ties — rare, not interesting for a lede
+        if pa > pb:
+            winner_m, loser_m = a, b
+            winner_pts, loser_pts = pa, pb
+        else:
+            winner_m, loser_m = b, a
+            winner_pts, loser_pts = pb, pa
+        margin = round(winner_pts - loser_pts, 2)
+
+        def _team_label(rid):
+            row = raw_by_id.get(rid) or {}
+            o = row.get("owner") or {}
+            return o.get("team_name") or o.get("display_name") or f"roster {rid}"
+
+        winner_team = _team_label(winner_m.get("roster_id"))
+        loser_team  = _team_label(loser_m.get("roster_id"))
+        winner_rank = (raw_by_id.get(winner_m.get("roster_id")) or {}).get("rank")
+        loser_rank  = (raw_by_id.get(loser_m.get("roster_id"))  or {}).get("rank")
+        # Upset: lower-ranked beat higher-ranked (rank #1 is highest)
+        was_upset = (isinstance(winner_rank, int)
+                     and isinstance(loser_rank, int)
+                     and winner_rank > loser_rank)
+        results.append({
+            "winner": winner_team,
+            "winner_points": round(winner_pts, 1),
+            "loser": loser_team,
+            "loser_points": round(loser_pts, 1),
+            "margin": margin,
+            "winner_rank": winner_rank,
+            "loser_rank": loser_rank,
+            "was_upset": was_upset,
+        })
+
+    if not results:
+        return None
+
+    # Top scorer of the week (regardless of W/L)
+    top = max(scored, key=lambda m: float(m.get("points") or 0))
+    top_row = raw_by_id.get(top.get("roster_id")) or {}
+    top_o = top_row.get("owner") or {}
+    top_team = top_o.get("team_name") or top_o.get("display_name") or "?"
+    top_pts = float(top.get("points") or 0)
+
+    biggest_blowout = max(results, key=lambda r: r["margin"])
+    closest_game   = min(results, key=lambda r: r["margin"])
+
+    upsets = [r for r in results if r["was_upset"]]
+    # Largest upsets = biggest margin among upsets; ties broken by rank gap
+    biggest_upset = None
+    if upsets:
+        biggest_upset = max(
+            upsets,
+            key=lambda r: (r["margin"], r["winner_rank"] - r["loser_rank"]),
+        )
+
+    return {
+        "week": last_week,
+        "results": results,
+        "top_scorer": {
+            "team": top_team,
+            "points": round(top_pts, 1),
+            "rank": top_row.get("rank"),
+        },
+        "biggest_blowout": {
+            "winner": biggest_blowout["winner"],
+            "loser":  biggest_blowout["loser"],
+            "margin": biggest_blowout["margin"],
+        },
+        "closest_game": {
+            "winner": closest_game["winner"],
+            "loser":  closest_game["loser"],
+            "margin": closest_game["margin"],
+        },
+        "biggest_upset": (
+            {
+                "winner":      biggest_upset["winner"],
+                "loser":       biggest_upset["loser"],
+                "winner_rank": biggest_upset["winner_rank"],
+                "loser_rank":  biggest_upset["loser_rank"],
+            }
+            if biggest_upset else None
+        ),
+    }
+
+
 def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = None,
-                     generic_names: dict[str, str] | None = None) -> dict:
+                     generic_names: dict | None = None) -> dict:
     users   = bundle["users"]
     rosters = bundle["rosters"]
     league_id = bundle["league"]["league_id"]
@@ -301,6 +443,9 @@ def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = No
                 for i, r in enumerate(enriched)
             ],
             "matchup_of_week": preview_motw,
+            # Preseason/early-return path: last-week recap is empty
+            # (no games have been played at all yet).
+            "last_week_results": None,
         }
 
     pf_per_game_by_team = {r["roster_id"]: r["pf_per_game"] for r in enriched}
@@ -406,6 +551,19 @@ def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = No
         if best is not None:
             motw = (best[1], best[2])
 
+    # Last-week recap — fed to the LLM commentary so the lede recaps
+    # previous-week action and the stat boxes can highlight last-week
+    # stats that vary week-to-week. Pulled from bundle["last_week_matchups"]
+    # which fetch_sleeper.py grabs alongside the current-week matchups.
+    # Use ranked_by_id (the post-rank rows with owner info merged in)
+    # so team labels and ranks resolve properly.
+    last_week = bundle.get("last_week")
+    last_week_results = _build_last_week_results(
+        last_week,
+        bundle.get("last_week_matchups") or [],
+        ranked_by_id,
+    )
+
     return {
         "league": bundle["league"]["name"],
         "week":   week,
@@ -416,6 +574,7 @@ def compute_rankings(bundle: dict, weights: dict, all_matchups: dict | None = No
             _build_motw(motw, motw_status, matchups, raw_by_id, raw_by_id, players_index, current_matchups)
             if motw else None
         ),
+        "last_week_results": last_week_results,
     }
 
 

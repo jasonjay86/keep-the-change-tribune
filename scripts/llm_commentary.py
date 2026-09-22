@@ -52,18 +52,22 @@ VOICE — John Madden:
 - No purple prose. No headlines-puns in body copy. No "lo! the ledger..."
 - Speak it out loud. Imagine the commissioner is half-watching.
 
-LENGTH — TOTAL ~280-320 WORDS, HARD CEILING 350:
+LENGTH — TOTAL ~300-340 WORDS, HARD CEILING 380:
 - lede.body:        ~90 words (one paragraph, choppy)
 - motw_blurb:       ~70 words
 - rankings_blurb:   ~90 words
 - closing:          ~25 words
-That's the total. Stay tight. If you go over 350 words the page gets
+That's the total. Stay tight. If you go over 380 words the page gets
 long and you start sounding like a writer, not Madden. Cut anything that
 doesn't sound like talking. When in doubt, leave it out.
 
 FACTS — sparingly, only as seasoning:
 - The league has been around 8 years. People know each other. Don't
   over-explain — a single line per section is plenty.
+- This is a half-PPR league (0.5 per reception) with full IDP scoring
+  (tackles, sacks, INTs, fumble recoveries, defensive TDs all count).
+  Some owners lean defense-heavy; some are offense-only. It's part of
+  why this league is fun — every roster looks different.
 - You may receive 0-2 "personal_bits" in the data — these are one-liner
   observations the commissioner has curated for variety. Treat them as
   light seasoning: weave one in if it fits naturally, ignore if it doesn't.
@@ -84,13 +88,46 @@ FACTS — sparingly, only as seasoning:
   "rookie" only when years_exp == 0. Otherwise just talk about the player
   by name and what they're projected to do this week — no career history.
 - Refer to owners by their Sleeper display_name or their generic team name.
-- Headlines stay sharp. Body copy stays Madden.
+
+LEDE — RECAP LAST WEEK, NOT THIS WEEK'S PREVIEW:
+- The lede sits at the TOP of the page. The Matchup-of-the-Week box sits
+  just below it. They are not allowed to talk about the same thing.
+- lede.body MUST recap LAST WEEK's action — biggest blowout, surprise win,
+  top scorer, closest game, biggest upset. The MOTW section below already
+  covers this week's preview; do NOT repeat that material here.
+- lede.headline + lede.deck: about last week's outcomes, not this week.
+- If no last_week_results data is provided (week 1, off-season), recap
+  the standings shape instead ("three teams at 2-0, four at 0-2, here's
+  what that means"). Do NOT default to previewing the MOTW.
+
+BY THE NUMBERS — MAKE THESE VARIES WEEK-TO-WEEK:
+- These boxes sit at the BOTTOM of the page and are the second thing
+  commissioners and owners scan after the lede. They MUST feel fresh
+  every edition — same labels every week is a sign of a lazy model.
+- Pull from this week's actual data. Good sources (in rough priority order):
+    * Last-week recap numbers (top scorer, biggest blowout margin,
+      closest-game margin, biggest-upset margin)
+    * Scoring-quirk reminders (half-PPR = 0.5 per reception, IDP scoring
+      bonuses — tackle/sack/INT weights)
+    * Power-rankings deltas (who climbed, who fell — but only if the
+      data includes last-week ranks for comparison)
+    * Standings shape (teams tied at the top, longest losing streak,
+      highest PF-per-game)
+- Keep value strings short (1-4 chars or a single number). Labels can be
+  a phrase but should fit on one line in the rendered card.
+- DO NOT default to "Top Power Score / Cellar Power Score / Teams in the
+  Hunt / Week Number" — those are the stub-fallback labels and they're
+  exactly what we are trying to replace.
 
 OUTPUT — strict JSON, exact shape:
 - One JSON object. No markdown fences. No preamble.
-- `lede` is mandatory. Everything else is encouraged but optional —
-  the Tribune will gracefully suppress any section you skip. (But
-  best results come from emitting all six.)
+- ALL SIX FIELDS ARE REQUIRED — `lede`, `motw_blurb`, `pick`,
+  `rankings_blurb`, `by_the_numbers`, `closing`. The Tribune handles
+  missing fields gracefully, but you should NEVER skip a section:
+  previous runs that omitted motw_blurb, rankings_blurb, by_the_numbers,
+  or closing left the page looking half-finished. Emit all six every
+  time. If you are running out of tokens, cut VERBOSITY inside each
+  section, never skip a section entirely.
 - Keys (exact, in this order): "lede", "motw_blurb", "pick",
                                   "rankings_blurb", "by_the_numbers", "closing"
 - lede:           OBJECT with "headline" (string), "deck" (string),
@@ -284,6 +321,16 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
         "commissioner_handle": site_cfg.get("commissioner_handle"),
     }
 
+    # Last-week recap payload — pulled from rankings.json (built by
+    # power_rankings._build_last_week_results from fetch_sleeper.py's
+    # last_week_matchups). When present, the LLM uses it as the lede's
+    # primary subject (last week's results, not this week's preview).
+    # When absent (week 1, preseason, fetch failure), the LLM falls back
+    # to recapping the standings shape — see SYSTEM_PROMPT "LEDE" rule.
+    last_week = rankings.get("last_week_results")
+    if last_week:
+        payload["last_week_results"] = last_week
+
     # Personal bits: 0-2 short one-liners curated for variety. If the list
     # is empty, the model just calls the football.
     if personal_bits:
@@ -318,9 +365,14 @@ def extract_json(text: str) -> dict:
     Extract the first valid JSON object from the response.
 
     Tolerates models that wrap JSON in ```json ... ``` fences despite the
-    instruction. Uses a balanced-brace scan to avoid the greedy-regex bug
-    where trailing prose after a JSON object gets concatenated into the
-    captured substring.
+    instruction. Also tolerates the model emitting TWO concatenated JSON
+    objects (sometimes happens when the model splits its output mid-stream
+    — first object has lede/motw_blurb/pick/rankings_blurb, second has
+    by_the_numbers/closing). We parse the first valid object as the
+    primary, then scan the rest of the response for additional top-level
+    fields and merge them in.
+
+    Returns the merged dict.
     """
     text = (text or "").strip()
     if not text:
@@ -329,48 +381,69 @@ def extract_json(text: str) -> dict:
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
 
-    # Find the first balanced {...} block
-    start = text.find("{")
-    if start == -1:
-        raise SystemExit("[llm_commentary] no JSON object found in response.")
-
-    depth = 0
-    in_string = False
-    escape = False
-    end = -1
-    for i in range(start, len(text)):
-        ch = text[i]
-        if escape:
-            escape = False
-            continue
-        if ch == "\\":
-            escape = True
-            continue
-        if ch == '"':
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
-
-    if end == -1:
-        print("[llm_commentary] unbalanced braces. First 600 chars:", file=sys.stderr)
-        print(text[:600], file=sys.stderr)
-        raise SystemExit("[llm_commentary] could not find a balanced JSON object.")
-
-    candidate = text[start:end]
+    decoder = json.JSONDecoder()
+    # Try strict parsing first
     try:
-        return json.loads(candidate)
+        primary, end = decoder.raw_decode(text)
+        leftover = text[end:].strip()
     except json.JSONDecodeError as e:
-        print(f"[llm_commentary] parse error on candidate. First 600 chars:", file=sys.stderr)
-        print(candidate[:600], file=sys.stderr)
-        raise SystemExit(f"[llm_commentary] JSON parse error: {e}")
+        # Fallback: scan for first balanced { ... } block (legacy behavior)
+        start = text.find("{")
+        if start == -1:
+            raise SystemExit("[llm_commentary] no JSON object found in response.")
+        depth = 0
+        in_string = False
+        escape = False
+        end = -1
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end == -1:
+            print("[llm_commentary] unbalanced braces. First 600 chars:", file=sys.stderr)
+            print(text[:600], file=sys.stderr)
+            raise SystemExit("[llm_commentary] could not find a balanced JSON object.")
+        primary = json.loads(text[start:end])
+        leftover = text[end:].strip()
+
+    # If there's leftover content, scan it for additional JSON fields we
+    # can merge into the primary object. The LLM occasionally emits a
+    # second `{...}` containing by_the_numbers and closing.
+    if leftover and leftover.startswith(","):
+        leftover = "{" + leftover
+    elif leftover and leftover.startswith("{"):
+        pass
+    elif leftover:
+        # Try to wrap it in braces and parse
+        leftover = "{" + leftover
+
+    if leftover and leftover.startswith("{"):
+        try:
+            secondary, _ = decoder.raw_decode(leftover)
+            if isinstance(secondary, dict):
+                for k, v in secondary.items():
+                    primary.setdefault(k, v)
+        except json.JSONDecodeError:
+            # Try the leftover as additional keys (not a full object)
+            pass
+
+    return primary
 
 
 def call_minimax(system: str, user: str, model: str, base_url: str, api_key: str, max_tokens: int = 1800) -> str:
@@ -487,13 +560,50 @@ def build_dynamic_stub(rankings: dict) -> dict | None:
     second_team = _team_label(second) if second else None
     second_power = round((second or {}).get("power_score") or 0, 1) if second else None
 
+    # Last-week recap — drives the lede when present (no LLM needed for
+    # stub mode). Mirrors what the live model is told to do in the SYSTEM_PROMPT.
+    last_week = rankings.get("last_week_results") or {}
+
     # --- Lede ---
-    headline = f"BOOM — Week {week}, and {top_team}'s on top"
-    deck = (
-        f"{top_team} ({top_record}) sits at #1 with {top_pf} points and a "
-        f"{top_power} Power score. Twelve teams, one week in the books."
-    )
-    if second:
+    # If we have last-week results, the lede recaps THEM (top scorers,
+    # biggest blowout, etc.) — never previews the MOTW (that's the box
+    # below). If no last-week data (week 1, preseason, fetch failure),
+    # fall back to standings shape.
+    if last_week.get("results"):
+        lw = last_week
+        winner = lw["biggest_blowout"]["winner"]
+        loser  = lw["biggest_blowout"]["loser"]
+        margin = lw["biggest_blowout"]["margin"]
+        top_scorer = lw["top_scorer"]["team"]
+        top_score  = lw["top_scorer"]["points"]
+        lw_week = lw.get("week", week - 1)
+        upset = lw.get("biggest_upset")
+        upset_str = (
+            f" Big upset: #{upset['winner_rank']} {upset['winner']} took "
+            f"down #{upset['loser_rank']} {upset['loser']}."
+            if upset else ""
+        )
+        headline = f"WEEK {week}, AND LAST WEEK WAS A MESS"
+        deck = (
+            f"{winner} dropped {margin} on {loser}. {top_scorer} led the "
+            f"league at {top_score}. Twelve teams, week {lw_week} in the books."
+        )
+        body = (
+            f"Alright, alright, here we are, week {week}. Let's talk about "
+            f"week {lw_week} first, because it was something. {winner} put up "
+            f"a beating — {margin} points on {loser}, bang-bang, no contest. "
+            f"{top_scorer} was the headline scorer at {top_score}, top of "
+            f"the whole league.{upset_str} "
+            f"Now this week: {top_team} ({top_record}) sits at number one "
+            f"with {top_pf} on the year. Twelve teams, one rung each. "
+            f"Let's get into it."
+        )
+    elif second:
+        headline = f"BOOM — Week {week}, and {top_team}'s on top"
+        deck = (
+            f"{top_team} ({top_record}) sits at #1 with {top_pf} points and a "
+            f"{top_power} Power score. Twelve teams, one week in the books."
+        )
         body = (
             f"Alright, alright, here we are, week {week}. {top_team} — that's "
             f"{top_owner or 'the top dog'} — sits at number one with a "
@@ -504,6 +614,11 @@ def build_dynamic_stub(rankings: dict) -> dict | None:
             f"{bottom_pf} points. Bang-bang. Let's get into it."
         )
     else:
+        headline = f"BOOM — Week {week}, and {top_team}'s on top"
+        deck = (
+            f"{top_team} ({top_record}) sits at #1 with {top_pf} points. "
+            f"Twelve teams, one rung each."
+        )
         body = (
             f"Alright, here we go, week {week}. {top_team} at number one, "
             f"{top_record} on the year, {top_pf} points on the board. "
@@ -552,12 +667,44 @@ def build_dynamic_stub(rankings: dict) -> dict | None:
         )
 
     # --- By the numbers ---
-    by_the_numbers = [
-        {"value": str(top_power),  "label": "Top Power Score"},
-        {"value": str(round((rs[-1].get("power_score") or 0), 1)), "label": "Cellar Power Score"},
-        {"value": str(len(rs)),    "label": "Teams in the Hunt"},
-        {"value": str(week),       "label": "Week Number"},
-    ]
+    # Pull from this week's actual data so the boxes vary. Priority:
+    #   1. Last-week recap stats (top scorer, blowout margin, etc.)
+    #   2. Standings shape (top PF, biggest PF-per-game)
+    #   3. League-format reminders (half-PPR + IDP scoring)
+    # Never default to the boring "Top Power / Cellar Power / Teams /
+    # Week Number" labels — those are the stub-of-last-resort shape.
+    by_the_numbers = []
+    if last_week.get("top_scorer"):
+        ts = last_week["top_scorer"]
+        by_the_numbers.append({
+            "value": str(ts["points"]),
+            "label": f"Top Scorer Wk {last_week.get('week', week - 1)}",
+        })
+    if last_week.get("biggest_blowout") and len(by_the_numbers) < 4:
+        bb = last_week["biggest_blowout"]
+        by_the_numbers.append({
+            "value": str(bb["margin"]),
+            "label": "Blowout Margin",
+        })
+    if last_week.get("biggest_upset") and len(by_the_numbers) < 4:
+        up = last_week["biggest_upset"]
+        by_the_numbers.append({
+            "value": f"#{up['winner_rank']}",
+            "label": f"Upset: Beat #{up['loser_rank']}",
+        })
+    # Fill remaining slots with standings-shape stats if needed
+    if len(by_the_numbers) < 4 and rs:
+        top_pfpg = round(top.get("pf_per_game") or 0, 1)
+        by_the_numbers.append({
+            "value": str(top_pfpg),
+            "label": "Top PF/Game",
+        })
+    if len(by_the_numbers) < 4:
+        by_the_numbers.append({"value": "0.5", "label": "Half-PPR / Catch"})
+    if len(by_the_numbers) < 4:
+        by_the_numbers.append({"value": "IDP", "label": "Defenders Score"})
+    while len(by_the_numbers) < 4:
+        by_the_numbers.append({"value": str(week), "label": "Week"})
 
     # --- Closing ---
     closing = (

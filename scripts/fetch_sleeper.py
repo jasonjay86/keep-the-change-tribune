@@ -159,6 +159,21 @@ def fetch(league_id: str) -> dict:
 
     matchups = _get(f"/league/{league_id}/matchups/{week}")
 
+    # Last-week matchups — used by the LLM commentary to recap the
+    # *previous* week's action in the lede (and to surface interesting
+    # stats in the by-the-numbers boxes). Pulled only when we're past
+    # week 1 of the regular season; preseason has no prior week to recap.
+    last_week_matchups = []
+    last_week = None
+    season_type = league.get("season_type", "regular")
+    if season_type == "regular" and week > 1:
+        last_week = week - 1
+        try:
+            last_week_matchups = _get(f"/league/{league_id}/matchups/{last_week}") or []
+        except Exception as e:
+            print(f"[fetch_sleeper] could not fetch last-week (wk{last_week}) matchups: {e}", file=sys.stderr)
+            last_week_matchups = []
+
     # Slim player index — only players actually on someone's roster
     all_player_ids = set()
     for r in rosters:
@@ -225,6 +240,8 @@ def fetch(league_id: str) -> dict:
         "users": users,
         "rosters": rosters,
         "matchups": matchups,
+        "last_week_matchups": last_week_matchups,
+        "last_week": last_week,
         "nfl_state": nfl_state,
         "players_index": players_index,
         "projections_available": bool(projections),
