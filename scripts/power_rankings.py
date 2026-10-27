@@ -290,14 +290,38 @@ def _build_last_week_results(last_week: int | None,
             by_mid[mid].append(m)
 
     results = []
+    ties = []
     for mid, sides in by_mid.items():
         if len(sides) != 2:
             continue
         a, b = sides
         pa = float(a.get("points") or 0)
         pb = float(b.get("points") or 0)
+
+        def _team_label(rid):
+            row = raw_by_id.get(rid) or {}
+            o = row.get("owner") or {}
+            return o.get("team_name") or o.get("display_name") or f"roster {rid}"
+
+        # Ties are a real game outcome, not a non-event. A 120.88-120.88
+        # draw between the #1 and #12 teams is one of the most notable
+        # results of the week, and dropping it made both teams vanish
+        # from the recap entirely (neither winner nor loser).
+        # 2026-10-27: KTC Week 7 — Injured Reserve (#1) vs Vitamin J (#12),
+        # both 120.88. The standings confirm it: those are the ONLY two
+        # teams in the league with a tie on their record.
         if pa == pb:
-            continue  # skip ties — rare, not interesting for a lede
+            tie_a_rank = (raw_by_id.get(a.get("roster_id")) or {}).get("rank")
+            tie_b_rank = (raw_by_id.get(b.get("roster_id")) or {}).get("rank")
+            ties.append({
+                "team_a": _team_label(a.get("roster_id")),
+                "team_b": _team_label(b.get("roster_id")),
+                "points": round(pa, 1),
+                "team_a_rank": tie_a_rank,
+                "team_b_rank": tie_b_rank,
+            })
+            continue
+
         if pa > pb:
             winner_m, loser_m = a, b
             winner_pts, loser_pts = pa, pb
@@ -305,11 +329,6 @@ def _build_last_week_results(last_week: int | None,
             winner_m, loser_m = b, a
             winner_pts, loser_pts = pb, pa
         margin = round(winner_pts - loser_pts, 2)
-
-        def _team_label(rid):
-            row = raw_by_id.get(rid) or {}
-            o = row.get("owner") or {}
-            return o.get("team_name") or o.get("display_name") or f"roster {rid}"
 
         winner_team = _team_label(winner_m.get("roster_id"))
         loser_team  = _team_label(loser_m.get("roster_id"))
@@ -330,7 +349,7 @@ def _build_last_week_results(last_week: int | None,
             "was_upset": was_upset,
         })
 
-    if not results:
+    if not results and not ties:
         return None
 
     # Top scorer of the week (regardless of W/L)
@@ -340,8 +359,10 @@ def _build_last_week_results(last_week: int | None,
     top_team = top_o.get("team_name") or top_o.get("display_name") or "?"
     top_pts = float(top.get("points") or 0)
 
-    biggest_blowout = max(results, key=lambda r: r["margin"])
-    closest_game   = min(results, key=lambda r: r["margin"])
+    # A week where every game was tied has no blowout/closest/upsert.
+    # Guard the min/max against an empty results list.
+    biggest_blowout = max(results, key=lambda r: r["margin"]) if results else None
+    closest_game   = min(results, key=lambda r: r["margin"]) if results else None
 
     upsets = [r for r in results if r["was_upset"]]
     # Largest upsets = biggest margin among upsets; ties broken by rank gap
@@ -355,21 +376,30 @@ def _build_last_week_results(last_week: int | None,
     return {
         "week": last_week,
         "results": results,
+        # Ties are surfaced separately — they have no winner/loser, so
+        # folding them into `results` would misreport the outcome.
+        "ties": ties,
         "top_scorer": {
             "team": top_team,
             "points": round(top_pts, 1),
             "rank": top_row.get("rank"),
         },
-        "biggest_blowout": {
-            "winner": biggest_blowout["winner"],
-            "loser":  biggest_blowout["loser"],
-            "margin": biggest_blowout["margin"],
-        },
-        "closest_game": {
-            "winner": closest_game["winner"],
-            "loser":  closest_game["loser"],
-            "margin": closest_game["margin"],
-        },
+        "biggest_blowout": (
+            {
+                "winner": biggest_blowout["winner"],
+                "loser":  biggest_blowout["loser"],
+                "margin": biggest_blowout["margin"],
+            }
+            if biggest_blowout else None
+        ),
+        "closest_game": (
+            {
+                "winner": closest_game["winner"],
+                "loser":  closest_game["loser"],
+                "margin": closest_game["margin"],
+            }
+            if closest_game else None
+        ),
         "biggest_upset": (
             {
                 "winner":      biggest_upset["winner"],

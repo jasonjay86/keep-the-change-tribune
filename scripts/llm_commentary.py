@@ -99,6 +99,14 @@ LEDE — RECAP LAST WEEK, NOT THIS WEEK'S PREVIEW:
 - If no last_week_results data is provided (week 1, off-season), recap
   the standings shape instead ("three teams at 2-0, four at 0-2, here's
   what that means"). Do NOT default to previewing the MOTW.
+- TIES ARE RESULTS — never omit them. If last_week_results contains a
+  "ties" array, every entry in it MUST be mentioned. A tied game is a
+  real outcome, and it is often the most interesting thing that
+  happened (2026-10-27, KTC Week 7: the #1 team and the #12 team tied
+  at 120.88 each). Refer to the teams by their team_a/team_b names and
+  the shared points value. Do NOT invent a winner for a tied game and
+  do NOT call one side the "loser". A tie between the #1 and #12 teams
+  is a marquee result — lean into it.
 
 BY THE NUMBERS — MAKE THESE VARIES WEEK-TO-WEEK:
 - These boxes sit at the BOTTOM of the page and are the second thing
@@ -107,6 +115,8 @@ BY THE NUMBERS — MAKE THESE VARIES WEEK-TO-WEEK:
 - Pull from this week's actual data. Good sources (in rough priority order):
     * Last-week recap numbers (top scorer, biggest blowout margin,
       closest-game margin, biggest-upset margin)
+    * Tied games from last_week_results["ties"] — a "Tied Game" or
+      "Tied At" box is a great fresh stat when one happened
     * Scoring-quirk reminders (half-PPR = 0.5 per reception, IDP scoring
       bonuses — tackle/sack/INT weights)
     * Power-rankings deltas (who climbed, who fell — but only if the
@@ -575,11 +585,12 @@ def build_dynamic_stub(rankings: dict) -> dict | None:
     # biggest blowout, etc.) — never previews the MOTW (that's the box
     # below). If no last-week data (week 1, preseason, fetch failure),
     # fall back to standings shape.
-    if last_week.get("results"):
+    if last_week.get("results") or last_week.get("ties"):
         lw = last_week
-        winner = lw["biggest_blowout"]["winner"]
-        loser  = lw["biggest_blowout"]["loser"]
-        margin = lw["biggest_blowout"]["margin"]
+        blowout = lw.get("biggest_blowout") or {}
+        winner = blowout.get("winner")
+        loser  = blowout.get("loser")
+        margin = blowout.get("margin")
         top_scorer = lw["top_scorer"]["team"]
         top_score  = lw["top_scorer"]["points"]
         lw_week = lw.get("week", week - 1)
@@ -589,21 +600,50 @@ def build_dynamic_stub(rankings: dict) -> dict | None:
             f"down #{upset['loser_rank']} {upset['loser']}."
             if upset else ""
         )
-        headline = f"WEEK {week}, AND LAST WEEK WAS A MESS"
-        deck = (
-            f"{winner} dropped {margin} on {loser}. {top_scorer} led the "
-            f"league at {top_score}. Twelve teams, week {lw_week} in the books."
-        )
-        body = (
-            f"Alright, alright, here we are, week {week}. Let's talk about "
-            f"week {lw_week} first, because it was something. {winner} put up "
-            f"a beating — {margin} points on {loser}, bang-bang, no contest. "
-            f"{top_scorer} was the headline scorer at {top_score}, top of "
-            f"the whole league.{upset_str} "
-            f"Now this week: {top_team} ({top_record}) sits at number one "
-            f"with {top_pf} on the year. Twelve teams, one rung each. "
-            f"Let's get into it."
-        )
+        # Ties get their own sentence — a tied game is a result, and in
+        # 2026-10-27's Week 7 the #1 and #12 teams tied at 120.88 each,
+        # which is the kind of story the lede should lead with.
+        ties = lw.get("ties") or []
+        tie_strs = []
+        for t in ties:
+            tie_strs.append(
+                f" And hold on — #{t.get('team_a_rank')} {t.get('team_a')} and "
+                f"#{t.get('team_b_rank')} {t.get('team_b')} tied it up at "
+                f"{t.get('points')} apiece. Dead heat."
+            )
+        tie_sentence = "".join(tie_strs)
+        if winner and loser:
+            headline = f"WEEK {week}, AND LAST WEEK WAS A MESS"
+            deck = (
+                f"{winner} dropped {margin} on {loser}. {top_scorer} led the "
+                f"league at {top_score}. Twelve teams, week {lw_week} in the books."
+            )
+            body = (
+                f"Alright, alright, here we are, week {week}. Let's talk about "
+                f"week {lw_week} first, because it was something. {winner} put up "
+                f"a beating — {margin} points on {loser}, bang-bang, no contest. "
+                f"{top_scorer} was the headline scorer at {top_score}, top of "
+                f"the whole league.{tie_sentence}{upset_str} "
+                f"Now this week: {top_team} ({top_record}) sits at number one "
+                f"with {top_pf} on the year. Twelve teams, one rung each. "
+                f"Let's get into it."
+            )
+        else:
+            # Every game tied — no blowout to report.
+            headline = f"WEEK {week}, AND NOTHING WAS DECIDED"
+            deck = (
+                f"{top_scorer} led the league at {top_score}. "
+                f"Twelve teams, week {lw_week} in the books."
+            )
+            body = (
+                f"Alright, alright, here we are, week {week}. Let's talk about "
+                f"week {lw_week} first, because it was something. "
+                f"{top_scorer} was the headline scorer at {top_score}, top of "
+                f"the whole league.{tie_sentence}{upset_str} "
+                f"Now this week: {top_team} ({top_record}) sits at number one "
+                f"with {top_pf} on the year. Twelve teams, one rung each. "
+                f"Let's get into it."
+            )
     elif second:
         headline = f"BOOM — Week {week}, and {top_team}'s on top"
         deck = (
@@ -697,6 +737,14 @@ def build_dynamic_stub(rankings: dict) -> dict | None:
         by_the_numbers.append({
             "value": f"#{up['winner_rank']}",
             "label": f"Upset: Beat #{up['loser_rank']}",
+        })
+    # Tied games get their own box — it's a distinct result shape and a
+    # fresh label, so it beats padding with a generic standings stat.
+    if last_week.get("ties") and len(by_the_numbers) < 4:
+        t = last_week["ties"][0]
+        by_the_numbers.append({
+            "value": str(t["points"]),
+            "label": f"Tied Game: #{t.get('team_a_rank')} v #{t.get('team_b_rank')}",
         })
     # Fill remaining slots with standings-shape stats if needed
     if len(by_the_numbers) < 4 and rs:
