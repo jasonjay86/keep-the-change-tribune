@@ -888,8 +888,165 @@ def main():
     if commentary.get("pick") is None:
         commentary["pick"] = _fallback_pick(rankings, commentary)
 
+    # Deterministic score check: the model sometimes substitutes the
+    # biggest_blowout MARGIN for a team's score (2026-11-03, Week 9:
+    # "steamrolled Team DougC 102.8-89.1" when 102.8 was the margin and
+    # the real line was 191.9-89.1). Retry once, then hard-repair any
+    # pair that still matches no real game — a wrong score on the page
+    # is worse than a mechanically corrected one.
+    bad_scores = check_scores(commentary, rankings)
+    if bad_scores and os.environ.get("MINIMAX_API_KEY"):
+        print(f"[llm_commentary] lede scores match no real game: {bad_scores}. Retrying.", file=sys.stderr)
+        try:
+            raw3 = call_minimax(
+                system=SYSTEM_PROMPT,
+                user=user_prompt
+                     + "\n\nNOTE: every game score you quote MUST be copied exactly "
+                       "from last_week_results.results[].winner_points and loser_points. "
+                       "The 'margin' field in biggest_blowout/closest_game is a POINT "
+                       "DIFFERENCE, never a team's score.",
+                model=llm_cfg.get("model", "MiniMax-M3"),
+                base_url=llm_cfg.get("base_url", "https://api.minimax.io/anthropic/v1").rstrip("/"),
+                api_key=os.environ["MINIMAX_API_KEY"],
+                max_tokens=llm_cfg.get("max_tokens", 1800) + 200,
+            )
+            retry = extract_json(raw3)
+            if isinstance(retry, dict) and retry.get("lede") and not check_scores(retry, rankings):
+                commentary = retry
+                print("[llm_commentary] score retry succeeded.", file=sys.stderr)
+        except Exception as ex:
+            print(f"[llm_commentary] score retry failed: {ex}", file=sys.stderr)
+
+    lede = commentary.get("lede")
+    if isinstance(lede, dict):
+        for field in ("body", "deck", "headline"):
+            if isinstance(lede.get(field), str):
+                fixed_text, repairs = repair_score_pairs(lede[field], rankings)
+                if repairs:
+                    print(f"[llm_commentary] repaired scores in lede.{field}: {repairs}", file=sys.stderr)
+                    lede[field] = fixed_text
+        remaining = check_scores(commentary, rankings)
+        if remaining:
+            print(f"[llm_commentary] WARNING scores still unmatched after repair: {remaining}", file=sys.stderr)
+
     Path(args.out).write_text(json.dumps(commentary, indent=2))
     print(f"[llm_commentary] wrote {args.out} (from API)")
+
+
+def _fmt_pts(v) -> str:
+    """Format fantasy points the way the commentary does: 191.88 -> '191.9'."""
+    s = f"{round(float(v), 1):.1f}"
+    return s
+
+
+_SCORE_PAIR_RE = re.compile(
+    r"(\d{1,3}(?:\.\d+)?)\s*[-\u2013\u2014]\s*(\d{1,3}(?:\.\d+)?)"
+)
+
+
+def _real_pairs(rankings: dict) -> list[tuple[float, float, str, str]]:
+    """(winner_pts, loser_pts, winner, loser) for last week's completed games."""
+    lw = rankings.get("last_week_results") or {}
+    out = []
+    for r in lw.get("results") or []:
+        try:
+            out.append((
+                round(float(r["winner_points"]), 1),
+                round(float(r["loser_points"]), 1),
+                (r.get("winner") or "").strip(),
+                (r.get("loser") or "").strip(),
+            ))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def _pair_matches(a: float, b: float, real) -> bool:
+    for wp, lp, _, _ in real:
+        if abs(a - wp) <= 0.15 and abs(b - lp) <= 0.15:
+            return True
+        if abs(a - lp) <= 0.15 and abs(b - wp) <= 0.15:
+            return True
+    return False
+
+
+def repair_score_pairs(text: str, rankings: dict) -> tuple[str, list[str]]:
+    """Fix 'X-Y' score pairs in retrospective prose that don't match any real game.
+
+    The model reliably confuses the `biggest_blowout.margin` value with a team's
+    score (2026-11-03, KTC Week 9: wrote "steamrolled Team DougC 102.8-89.1"
+    where 102.8 was the margin and the real line was 191.9-89.1).
+
+    Strategy: for any pair that matches no actual result, find the nearest team
+    name mentioned before it, look up that team's real game, and rewrite the pair
+    preserving orientation (winner-loser vs loser-winner is inferred from which
+    side the second number matches).
+    """
+    real = _real_pairs(rankings)
+    issues: list[str] = []
+    if not real or not isinstance(text, str):
+        return text, issues
+
+    names: list[tuple[str, tuple[float, float, str, str]]] = []
+    for wp, lp, w, l in real:
+        if w:
+            names.append((w.lower(), (wp, lp, w, l)))
+        if l:
+            names.append((l.lower(), (wp, lp, w, l)))
+
+    def _sub(m: re.Match) -> str:
+        a, b = float(m.group(1)), float(m.group(2))
+        # Skip records (3-0) and anything that isn't a fantasy score.
+        if a < 30 or b < 30:
+            return m.group(0)
+        if _pair_matches(a, b, real):
+            return m.group(0)
+
+        prefix = text[: m.start()].lower()
+        nearest = None
+        best_pos = -1
+        for name, r in names:
+            pos = prefix.rfind(name)
+            if pos > best_pos:
+                best_pos, nearest = pos, r
+        if nearest is None:
+            issues.append(f"score {m.group(0)} matches no game and no team was near enough to repair")
+            return m.group(0)
+
+        wp, lp, wname, lname = nearest
+        # Preserve the orientation the sentence used.
+        if abs(b - lp) <= 0.5:
+            fixed = f"{_fmt_pts(wp)}-{_fmt_pts(lp)}"
+        elif abs(b - wp) <= 0.5:
+            fixed = f"{_fmt_pts(lp)}-{_fmt_pts(wp)}"
+        else:
+            fixed = f"{_fmt_pts(wp)}-{_fmt_pts(lp)}"
+        issues.append(
+            f"score {m.group(0)} -> {fixed} (nearest team: {wname} vs {lname})"
+        )
+        return fixed
+
+    return _SCORE_PAIR_RE.sub(_sub, text), issues
+
+
+def check_scores(commentary: dict, rankings: dict) -> list[str]:
+    """Return every score pair in the lede that matches no real result."""
+    lede = commentary.get("lede") or {}
+    if not isinstance(lede, dict):
+        return []
+    real = _real_pairs(rankings)
+    if not real:
+        return []
+    bad = []
+    for field in ("body", "deck", "headline"):
+        text = lede.get(field) or ""
+        for m in _SCORE_PAIR_RE.finditer(text):
+            a, b = float(m.group(1)), float(m.group(2))
+            if a < 30 or b < 30:
+                continue
+            if not _pair_matches(a, b, real):
+                bad.append(f"{field}: {m.group(0)}")
+    return bad
 
 
 def _fallback_pick(rankings: dict, commentary: dict) -> dict | None:
