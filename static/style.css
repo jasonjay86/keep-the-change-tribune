@@ -841,3 +841,13 @@ html, body {
   margin-top: 6px;
   line-height: 1.45;
 }
+
+/* ---- résumé grid ---- */
+.resume-table { font-size: 13px; }
+.resume-table tfoot td { border-top: 2px solid var(--rule); padding-top: 10px; }
+.resume-title { color: var(--accent); font-weight: 700; letter-spacing: 0.03em; }
+.resume-second { color: var(--ink-faded); font-style: italic; }
+
+/* résumé polish */
+.resume-table td:last-child, .resume-table th:last-child { padding-right: 18px; }
+.resume-table tfoot td { line-height: 1.6; }

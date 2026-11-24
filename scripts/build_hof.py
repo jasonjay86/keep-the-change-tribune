@@ -504,6 +504,10 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         srow["co_champions"] = True
         srow["champions"] = adj["champions"]
         recs = {r["manager"]: r for r in season_totals if r["season"] == srow["season"]}
+        # a shared title is a first-place finish for both
+        for r in recs.values():
+            if r["manager"] in adj["champions"]:
+                r["finish"] = 1
         srow["champion_record"] = " / ".join(
             f"{recs[n]['w']}-{recs[n]['l']}" for n in adj["champions"] if n in recs) or srow["champion_record"]
         srow["co_note"] = adj["note"]
@@ -653,6 +657,37 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         })
     mrows.sort(key=lambda x: (-len(x["titles"]), -x["w"], -x["pct"]))
 
+    # ---------- résumé grid (manager x season)
+    champ_of: dict[str, dict] = {}
+    runner_of: dict[str, dict] = {}
+    for srow in seasons_out:
+        if srow.get("co_champions"):
+            for n in srow["champions"]:
+                champ_of.setdefault(n, {})[srow["season"]] = "Co-champion"
+        elif srow["champion"]:
+            champ_of.setdefault(srow["champion"], {})[srow["season"]] = "Champion"
+        if srow["runner_up"]:
+            runner_of.setdefault(srow["runner_up"], {})[srow["season"]] = "Runner-up"
+
+    resume: dict[str, list] = {}
+    for row in season_totals:
+        nm, seas = row["manager"], row["season"]
+        result = champ_of.get(nm, {}).get(seas) or runner_of.get(nm, {}).get(seas)
+        if not result:
+            result = ("Playoff exit" if seas in bracket_by_season.get(nm, set())
+                      else "Missed playoffs")
+        resume.setdefault(nm, []).append({
+            "season": seas,
+            "w": row["w"], "l": row["l"], "t": row["t"],
+            "record": f"{row['w']}-{row['l']}" + (f"-{row['t']}" if row["t"] else ""),
+            "pf": round(row["pf"], 1),
+            "seed": row.get("seed"),
+            "finish": row.get("finish"),
+            "result": result,
+        })
+    for rows in resume.values():
+        rows.sort(key=lambda r: r["season"], reverse=True)
+
     # ---------- bench points (lineup regret) and best-ball
     bench: dict[str, dict] = {}
     for b in bench_rows:
@@ -669,6 +704,11 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
     # best-ball record: replay every regular-season game using each side's
     # optimal top-N score for that week
     best_lookup = {(b["season"], b["week"], b["manager"]): b["best"] for b in bench_rows}
+    # Two measures, because they answer different questions:
+    #   * bestball W-L replays both sides' optimal lineups (a like-for-like test —
+    #     it CAN be worse than the actual record, since opponents improve too),
+    #   * wins_left counts only games where THIS team's optimal lineup would have
+    #     beaten the opponent's ACTUAL score — monotone, never negative.
     bestball: dict[str, dict] = {}
     for g in games:
         if g["playoff"]:
@@ -677,14 +717,18 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         bb = best_lookup.get((g["season"], g["week"], g["b"]))
         if ba is None or bb is None:
             continue
-        for me, mine, theirs in ((g["a"], ba, bb), (g["b"], bb, ba)):
-            d = bestball.setdefault(me, {"w": 0, "l": 0, "t": 0})
+        for me, mine, theirs, my_actual, opp_actual in (
+                (g["a"], ba, bb, g["a_pts"], g["b_pts"]),
+                (g["b"], bb, ba, g["b_pts"], g["a_pts"])):
+            d = bestball.setdefault(me, {"w": 0, "l": 0, "t": 0, "left": 0})
             if mine > theirs:
                 d["w"] += 1
             elif mine < theirs:
                 d["l"] += 1
             else:
                 d["t"] += 1
+            if my_actual < opp_actual and mine > opp_actual:
+                d["left"] += 1
 
     for row in mrows:
         b = bench.get(row["name"], {"total": 0.0, "weeks": 0, "clean": 0, "worst": None})
@@ -694,8 +738,9 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         w = b["worst"]
         row["bench_worst"] = (f"{w['bench']:.1f} pts · {w['season']} W{w['week']}") if w else "—"
         row["bench_worst_pts"] = round(w["bench"], 1) if w else 0.0
-        bb = bestball.get(row["name"], {"w": 0, "l": 0, "t": 0})
+        bb = bestball.get(row["name"], {"w": 0, "l": 0, "t": 0, "left": 0})
         row["bestball_record"] = f"{bb['w']}-{bb['l']}" + (f"-{bb['t']}" if bb["t"] else "")
+        row["wins_left"] = bb["left"]
         row["bestball_gain"] = (bb["w"] - row["w"])
 
     # ---------- trades, resolved on what each side actually received
@@ -1004,6 +1049,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         "drafts": sorted(draft_teams, key=lambda d: (d["season"], -d["surplus"])),
         "drafts_by_season": drafts_by_season,
         "awards": awards,
+        "resume": resume,
         "trades": trade_rows,
         "draft_highlights": {
             "best_pick": best_pick, "worst_pick": worst_pick, "top_scorer_pick": top_scorer_pick,

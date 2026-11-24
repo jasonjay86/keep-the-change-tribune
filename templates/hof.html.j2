@@ -23,12 +23,12 @@
     <a href="#trophy-room">Trophy Room</a>
     <a href="#record-book">Record Book</a>
     <a href="#ledger">All-Time Ledger</a>
+    <a href="#resume">Résumé Grid</a>
     <a href="#rivalry">Rivalry File</a>
     <a href="#drafts">Draft Ledger</a>
     <a href="#deals">Ledger of Deals</a>
     <a href="#bench">Bench File</a>
     <a href="#trades">Trade Ledger</a>
-    <a href="#awards">Awards</a>
   </nav>
   <div class="rule rule-double"></div>
 </header>
@@ -185,9 +185,96 @@
 
 <div class="rule rule-single"></div>
 
+<!-- ================================================== RESUME GRID -->
+<section id="resume">
+  <div class="kicker">── Chapter IV · The Résumé Grid ──</div>
+  <p class="section-blurb">Every season a manager has played, one card at a time. Pick a name and read the career as a column
+    rather than a line in a table.</p>
+
+  <div class="h2h-picker">
+    <label for="resume-select">Manager</label>
+    <select id="resume-select">
+      {% for m in managers %}<option value="{{ m.name }}">{{ m.name }}</option>{% endfor %}
+    </select>
+    <span class="h2h-hint">Regular season record, finish and fate</span>
+  </div>
+
+  <div class="hof-scroll">
+    <table class="rankings-table hof-table resume-table">
+      <thead>
+        <tr>
+          <th class="col-rank">Season</th>
+          <th class="col-record">Record</th>
+          <th class="col-pf">PF</th>
+          <th class="col-pf">Seed</th>
+          <th class="col-pf">Finish</th>
+          <th>Fate</th>
+        </tr>
+      </thead>
+      <tbody id="resume-body">
+        <tr><td colspan="6" class="dim">Select a manager above.</td></tr>
+      </tbody>
+      <tfoot id="resume-foot"></tfoot>
+    </table>
+  </div>
+
+  <script type="application/json" id="resume-data">{{ resume|tojson }}</script>
+  <script>
+  (function () {
+    var data = JSON.parse(document.getElementById('resume-data').textContent);
+    var sel = document.getElementById('resume-select');
+    var body = document.getElementById('resume-body');
+    var foot = document.getElementById('resume-foot');
+
+    function esc(t) {
+      return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+        return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
+      });
+    }
+
+    function render(name) {
+      var rows = data[name] || [];
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="6" class="dim">No seasons on record.</td></tr>';
+        foot.innerHTML = '';
+        return;
+      }
+      var w = 0, l = 0, t = 0, pf = 0, titles = 0;
+      body.innerHTML = rows.map(function (r) {
+        w += r.w; l += r.l; t += r.t; pf += r.pf;
+        var big = (r.result === 'Champion' || r.result === 'Co-champion');
+        if (big) titles++;
+        var cls = big ? 'resume-title' : (r.result === 'Runner-up' ? 'resume-second' : '');
+        return '<tr>' +
+          '<td class="col-rank"><strong>' + esc(r.season) + '</strong></td>' +
+          '<td class="col-record">' + esc(r.record) + '</td>' +
+          '<td class="col-pf">' + Number(r.pf).toFixed(1) + '</td>' +
+          '<td class="col-pf">' + (r.seed || '—') + '</td>' +
+          '<td class="col-pf">' + (r.finish || '—') + '</td>' +
+          '<td class="' + cls + '">' + esc(r.result) + '</td>' +
+        '</tr>';
+      }).join('');
+      var g = w + l + t;
+      foot.innerHTML = '<tr><td><strong>' + esc(name) + '</strong></td>' +
+        '<td class="col-record"><strong>' + w + '–' + l + (t ? '–' + t : '') + '</strong></td>' +
+        '<td class="col-pf"><strong>' + pf.toFixed(1) + '</strong></td>' +
+        '<td colspan="3"><span class="dim">' + rows.length + ' season' + (rows.length === 1 ? '' : 's') +
+        ' · ' + g + ' games · ' +
+        (g ? ((w + 0.5 * t) / g).toFixed(3) : '—') + ' win% · ' +
+        (titles ? titles + ' title' + (titles === 1 ? '' : 's') : 'no titles') + '</span></td></tr>';
+    }
+
+    sel.addEventListener('change', function () { render(sel.value); });
+    render(sel.value);
+  })();
+  </script>
+</section>
+
+<div class="rule rule-single"></div>
+
 <!-- ================================================== RIVALRY FILE -->
 <section id="rivalry">
-  <div class="kicker">── Chapter IV · The Rivalry File ──</div>
+  <div class="kicker">── Chapter V · The Rivalry File ──</div>
   <p class="section-blurb">The most-played grudges in league history, plus the tightest and the ugliest of the lot.</p>
 
   <div class="hof-rivalry-cards">
@@ -289,7 +376,7 @@
 
 <!-- ================================================== DRAFT LEDGER -->
 <section id="drafts">
-  <div class="kicker">── Chapter V · The Draft Ledger ──</div>
+  <div class="kicker">── Chapter VI · The Draft Ledger ──</div>
   <p class="section-blurb">Every draft graded on what each pick actually returned against what that round historically paid. Half-PPR points, full season.</p>
 
   {% if draft_highlights.best_pick %}
@@ -346,7 +433,7 @@
 
 <!-- ================================================== LEDGER OF DEALS -->
 <section id="deals">
-  <div class="kicker">── Chapter VI · The Ledger of Deals ──</div>
+  <div class="kicker">── Chapter VII · The Ledger of Deals ──</div>
   <p class="section-blurb">{{ totals.trades }} trades and {{ totals.moves }} total roster moves on record. Some were strategy. Most were panic.</p>
   <div class="hof-scroll">
     <table class="rankings-table hof-table">
@@ -382,7 +469,7 @@
 
 <!-- ================================================== BENCH FILE -->
 <section id="bench">
-  <div class="kicker">── Chapter VII · The Bench File ──</div>
+  <div class="kicker">── Chapter VIII · The Bench File ──</div>
   <p class="section-blurb">Points left sitting on the bench. Every lineup has one regret; this is the ledger of them. Best-ball record replays
     each week as though the optimal lineup had been started — a measure of talent wasted on hesitation.</p>
   <div class="hof-scroll">
@@ -395,8 +482,7 @@
           <th class="col-pf">Per Week</th>
           <th>Worst Week</th>
           <th class="col-pf">Clean Sheets</th>
-          <th class="col-record">Best-Ball</th>
-          <th class="col-pf">Gain</th>
+          <th class="col-pf">Wins Left</th>
         </tr>
       </thead>
       <tbody>
@@ -408,22 +494,22 @@
           <td class="col-pf">{{ "%.1f"|format(m.bench_avg) }}</td>
           <td class="dim">{{ m.bench_worst }}</td>
           <td class="col-pf">{{ m.bench_clean }}</td>
-          <td class="col-record">{{ m.bestball_record }}</td>
-          <td class="col-pf">{% if m.bestball_gain %}<strong>+{{ m.bestball_gain }}</strong>{% else %}—{% endif %}</td>
+          <td class="col-pf">{% if m.wins_left %}<strong>{{ m.wins_left }}</strong>{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <p class="hof-footnote">Clean sheets = weeks with nothing of value left on the bench. Gain = wins a perfect lineup would have added
-    (best-ball is slot-blind: the top scorers on the roster, regardless of position).</p>
+  <p class="hof-footnote">Clean sheets = weeks with nothing of value left on the bench. <strong>Wins left</strong> = regular-season
+    games lost that a perfect lineup would have won against the score the opponent actually posted — always zero or better, and
+    slot-blind (it assumes the top scorers on the roster start, regardless of position).</p>
 </section>
 
 <div class="rule rule-single"></div>
 
 <!-- ================================================== TRADE LEDGER -->
 <section id="trades">
-  <div class="kicker">── Chapter VIII · The Trade Ledger ──</div>
+  <div class="kicker">── Chapter IX · The Trade Ledger ──</div>
   <p class="section-blurb">{{ trades|length }} trades graded on what each side actually received afterwards — points scored by the
     acquired players, rest of season, in the new colours. Verdicts are unforgiving and entirely hindsight-based, as is tradition.</p>
 
@@ -468,22 +554,6 @@
 </section>
 
 <div class="rule rule-single"></div>
-
-<!-- ================================================== AWARDS -->
-<section id="awards">
-  <div class="kicker accent">── Chapter IX · Awards Night ──</div>
-  <p class="section-blurb">The inaugural class, elected by arithmetic rather than a committee. Nobody campaigned; nobody won a vote.</p>
-  <div class="hof-awards">
-    {% for a in awards %}
-    <div class="award-card">
-      <div class="award-title">{{ a.title }}</div>
-      <div class="award-winner">{{ a.winner }}</div>
-      <div class="award-value">{{ a.value }}</div>
-      <div class="award-detail">{{ a.detail }}</div>
-    </div>
-    {% endfor %}
-  </div>
-</section>
 
 <footer class="colophon">
   <div class="rule rule-double"></div>

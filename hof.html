@@ -23,12 +23,12 @@
     <a href="#trophy-room">Trophy Room</a>
     <a href="#record-book">Record Book</a>
     <a href="#ledger">All-Time Ledger</a>
+    <a href="#resume">Résumé Grid</a>
     <a href="#rivalry">Rivalry File</a>
     <a href="#drafts">Draft Ledger</a>
     <a href="#deals">Ledger of Deals</a>
     <a href="#bench">Bench File</a>
     <a href="#trades">Trade Ledger</a>
-    <a href="#awards">Awards</a>
   </nav>
   <div class="rule rule-double"></div>
 </header>
@@ -555,7 +555,7 @@
           <td class="col-pf">115.3</td>
           <td class="col-pf"><strong>1</strong><span class="dim">&#8225;</span></td>
           <td class="col-pf">3</td>
-          <td class="col-pf">2</td>
+          <td class="col-pf">1</td>
           <td class="col-pf">12</td>
           <td class="col-pf">167.4</td>
           <td class="col-pf">73.5</td>
@@ -945,9 +945,96 @@
 
 <div class="rule rule-single"></div>
 
+<!-- ================================================== RESUME GRID -->
+<section id="resume">
+  <div class="kicker">── Chapter IV · The Résumé Grid ──</div>
+  <p class="section-blurb">Every season a manager has played, one card at a time. Pick a name and read the career as a column
+    rather than a line in a table.</p>
+
+  <div class="h2h-picker">
+    <label for="resume-select">Manager</label>
+    <select id="resume-select">
+      <option value="ptoJoe">ptoJoe</option><option value="streetlegaltony">streetlegaltony</option><option value="jasonjay86">jasonjay86</option><option value="Cashorcheckplz">Cashorcheckplz</option><option value="BigMarc">BigMarc</option><option value="kingofwakanda52">kingofwakanda52</option><option value="adenatorgoodguy">adenatorgoodguy</option><option value="videogameyankee">videogameyankee</option><option value="DaMojohSr">DaMojohSr</option><option value="DougC71">DougC71</option><option value="Heffomite">Heffomite</option><option value="jroberts83">jroberts83</option><option value="WhollyPants">WhollyPants</option><option value="gonzogust">gonzogust</option><option value="emilyjohnson">emilyjohnson</option><option value="WatsonsCrew">WatsonsCrew</option><option value="Ajay49">Ajay49</option><option value="realtor1234">realtor1234</option><option value="pv21">pv21</option><option value="DaRaven70">DaRaven70</option><option value="Gusbus1216">Gusbus1216</option><option value="TreyusExMachina">TreyusExMachina</option><option value="Mellowman">Mellowman</option>
+    </select>
+    <span class="h2h-hint">Regular season record, finish and fate</span>
+  </div>
+
+  <div class="hof-scroll">
+    <table class="rankings-table hof-table resume-table">
+      <thead>
+        <tr>
+          <th class="col-rank">Season</th>
+          <th class="col-record">Record</th>
+          <th class="col-pf">PF</th>
+          <th class="col-pf">Seed</th>
+          <th class="col-pf">Finish</th>
+          <th>Fate</th>
+        </tr>
+      </thead>
+      <tbody id="resume-body">
+        <tr><td colspan="6" class="dim">Select a manager above.</td></tr>
+      </tbody>
+      <tfoot id="resume-foot"></tfoot>
+    </table>
+  </div>
+
+  <script type="application/json" id="resume-data">{"Ajay49": [{"finish": 7, "l": 6, "pf": 1388.2, "record": "7-6", "result": "Missed playoffs", "season": "2019", "seed": 7, "t": 0, "w": 7}], "BigMarc": [{"finish": 9, "l": 6, "pf": 1202.1, "record": "4-6", "result": "Missed playoffs", "season": "2026", "seed": 9, "t": 0, "w": 4}, {"finish": 1, "l": 6, "pf": 1758.2, "record": "8-6", "result": "Champion", "season": "2025", "seed": 6, "t": 0, "w": 8}, {"finish": 11, "l": 12, "pf": 1440.5, "record": "2-12", "result": "Missed playoffs", "season": "2024", "seed": 11, "t": 0, "w": 2}, {"finish": 3, "l": 3, "pf": 1626.2, "record": "11-3", "result": "Playoff exit", "season": "2023", "seed": 1, "t": 0, "w": 11}, {"finish": 11, "l": 10, "pf": 1435.5, "record": "4-10", "result": "Missed playoffs", "season": "2022", "seed": 11, "t": 0, "w": 4}, {"finish": 6, "l": 6, "pf": 1564.4, "record": "7-6", "result": "Playoff exit", "season": "2021", "seed": 6, "t": 0, "w": 7}, {"finish": 8, "l": 6, "pf": 1508.6, "record": "7-6", "result": "Missed playoffs", "season": "2020", "seed": 8, "t": 0, "w": 7}, {"finish": 2, "l": 2, "pf": 1730.5, "record": "11-2", "result": "Runner-up", "season": "2019", "seed": 1, "t": 0, "w": 11}], "Cashorcheckplz": [{"finish": 2, "l": 2, "pf": 1287.1, "record": "7-2-1", "result": "Playoff exit", "season": "2026", "seed": 2, "t": 1, "w": 7}, {"finish": 4, "l": 5, "pf": 1692.2, "record": "9-5", "result": "Playoff exit", "season": "2025", "seed": 4, "t": 0, "w": 9}, {"finish": 8, "l": 8, "pf": 1608.3, "record": "6-8", "result": "Missed playoffs", "season": "2024", "seed": 8, "t": 0, "w": 6}, {"finish": 1, "l": 6, "pf": 1774.1, "record": "8-6", "result": "Champion", "season": "2023", "seed": 3, "t": 0, "w": 8}, {"finish": 7, "l": 8, "pf": 1498.2, "record": "6-8", "result": "Missed playoffs", "season": "2022", "seed": 7, "t": 0, "w": 6}, {"finish": 3, "l": 4, "pf": 1678.5, "record": "9-4", "result": "Playoff exit", "season": "2021", "seed": 3, "t": 0, "w": 9}, {"finish": 10, "l": 10, "pf": 1569.1, "record": "3-10", "result": "Missed playoffs", "season": "2020", "seed": 10, "t": 0, "w": 3}, {"finish": 3, "l": 5, "pf": 1615.6, "record": "8-5", "result": "Playoff exit", "season": "2019", "seed": 3, "t": 0, "w": 8}], "DaMojohSr": [{"finish": 11, "l": 8, "pf": 987.9, "record": "2-8", "result": "Missed playoffs", "season": "2026", "seed": 11, "t": 0, "w": 2}, {"finish": 11, "l": 10, "pf": 1349.3, "record": "4-10", "result": "Missed playoffs", "season": "2025", "seed": 11, "t": 0, "w": 4}, {"finish": 6, "l": 6, "pf": 1799.7, "record": "8-6", "result": "Playoff exit", "season": "2024", "seed": 6, "t": 0, "w": 8}, {"finish": 11, "l": 11, "pf": 1428.8, "record": "3-11", "result": "Missed playoffs", "season": "2023", "seed": 11, "t": 0, "w": 3}, {"finish": 12, "l": 11, "pf": 1315.0, "record": "3-11", "result": "Missed playoffs", "season": "2022", "seed": 12, "t": 0, "w": 3}, {"finish": 8, "l": 8, "pf": 1488.6, "record": "5-8", "result": "Missed playoffs", "season": "2021", "seed": 8, "t": 0, "w": 5}, {"finish": 2, "l": 4, "pf": 1663.3, "record": "9-4", "result": "Playoff exit", "season": "2020", "seed": 2, "t": 0, "w": 9}, {"finish": 8, "l": 8, "pf": 1628.5, "record": "5-8", "result": "Missed playoffs", "season": "2019", "seed": 8, "t": 0, "w": 5}], "DaRaven70": [{"finish": 10, "l": 6, "pf": 838.0, "record": "4-6", "result": "Missed playoffs", "season": "2026", "seed": 10, "t": 0, "w": 4}, {"finish": 12, "l": 12, "pf": 1103.7, "record": "2-12", "result": "Missed playoffs", "season": "2025", "seed": 12, "t": 0, "w": 2}], "DougC71": [{"finish": 7, "l": 5, "pf": 1260.5, "record": "5-5", "result": "Missed playoffs", "season": "2026", "seed": 7, "t": 0, "w": 5}, {"finish": 9, "l": 9, "pf": 1626.8, "record": "5-9", "result": "Missed playoffs", "season": "2025", "seed": 9, "t": 0, "w": 5}, {"finish": 2, "l": 3, "pf": 1672.7, "record": "11-3", "result": "Playoff exit", "season": "2024", "seed": 2, "t": 0, "w": 11}, {"finish": 12, "l": 11, "pf": 1383.5, "record": "3-11", "result": "Missed playoffs", "season": "2023", "seed": 12, "t": 0, "w": 3}, {"finish": 3, "l": 4, "pf": 1670.0, "record": "10-4", "result": "Playoff exit", "season": "2022", "seed": 3, "t": 0, "w": 10}, {"finish": 12, "l": 12, "pf": 1252.3, "record": "1-12", "result": "Missed playoffs", "season": "2021", "seed": 12, "t": 0, "w": 1}, {"finish": 11, "l": 10, "pf": 1372.6, "record": "3-10", "result": "Missed playoffs", "season": "2020", "seed": 11, "t": 0, "w": 3}], "Gusbus1216": [{"finish": 10, "l": 9, "pf": 1401.0, "record": "5-9", "result": "Missed playoffs", "season": "2024", "seed": 10, "t": 0, "w": 5}], "Heffomite": [{"finish": 2, "l": 4, "pf": 1613.5, "record": "10-4", "result": "Playoff exit", "season": "2023", "seed": 2, "t": 0, "w": 10}, {"finish": 10, "l": 9, "pf": 1381.1, "record": "5-9", "result": "Missed playoffs", "season": "2022", "seed": 10, "t": 0, "w": 5}, {"finish": 9, "l": 8, "pf": 1462.5, "record": "5-8", "result": "Missed playoffs", "season": "2021", "seed": 9, "t": 0, "w": 5}, {"finish": 9, "l": 7, "pf": 1538.4, "record": "6-7", "result": "Missed playoffs", "season": "2020", "seed": 9, "t": 0, "w": 6}], "Mellowman": [{"finish": 12, "l": 11, "pf": 1239.5, "record": "2-11", "result": "Missed playoffs", "season": "2019", "seed": 12, "t": 0, "w": 2}], "TreyusExMachina": [{"finish": 8, "l": 6, "pf": 1218.0, "record": "4-6", "result": "Playoff exit", "season": "2026", "seed": 8, "t": 0, "w": 4}], "WatsonsCrew": [{"finish": 6, "l": 6, "pf": 1443.3, "record": "7-6", "result": "Playoff exit", "season": "2019", "seed": 6, "t": 0, "w": 7}], "WhollyPants": [{"finish": 8, "l": 8, "pf": 1482.5, "record": "6-8", "result": "Missed playoffs", "season": "2022", "seed": 8, "t": 0, "w": 6}, {"finish": 11, "l": 10, "pf": 1294.1, "record": "3-10", "result": "Missed playoffs", "season": "2021", "seed": 11, "t": 0, "w": 3}, {"finish": 5, "l": 5, "pf": 1446.8, "record": "8-5", "result": "Playoff exit", "season": "2020", "seed": 5, "t": 0, "w": 8}, {"finish": 10, "l": 8, "pf": 1444.6, "record": "5-8", "result": "Missed playoffs", "season": "2019", "seed": 10, "t": 0, "w": 5}], "adenatorgoodguy": [{"finish": 1, "l": 4, "pf": 1590.7, "record": "9-4", "result": "Champion", "season": "2019", "seed": 2, "t": 0, "w": 9}], "emilyjohnson": [{"finish": 8, "l": 8, "pf": 1634.9, "record": "6-8", "result": "Missed playoffs", "season": "2023", "seed": 8, "t": 0, "w": 6}, {"finish": 11, "l": 9, "pf": 1398.1, "record": "4-9", "result": "Missed playoffs", "season": "2019", "seed": 11, "t": 0, "w": 4}], "gonzogust": [{"finish": 6, "l": 4, "pf": 1115.1, "record": "6-4", "result": "Missed playoffs", "season": "2026", "seed": 6, "t": 0, "w": 6}, {"finish": 3, "l": 4, "pf": 1811.3, "record": "9-4-1", "result": "Playoff exit", "season": "2025", "seed": 3, "t": 1, "w": 9}, {"finish": 12, "l": 12, "pf": 1341.7, "record": "2-12", "result": "Missed playoffs", "season": "2024", "seed": 12, "t": 0, "w": 2}], "jasonjay86": [{"finish": 12, "l": 8, "pf": 1202.5, "record": "1-8-1", "result": "Missed playoffs", "season": "2026", "seed": 12, "t": 1, "w": 1}, {"finish": 10, "l": 9, "pf": 1567.9, "record": "5-9", "result": "Missed playoffs", "season": "2025", "seed": 10, "t": 0, "w": 5}, {"finish": 2, "l": 5, "pf": 1704.4, "record": "9-5", "result": "Runner-up", "season": "2024", "seed": 4, "t": 0, "w": 9}, {"finish": 4, "l": 6, "pf": 1754.3, "record": "8-6", "result": "Playoff exit", "season": "2023", "seed": 4, "t": 0, "w": 8}, {"finish": 2, "l": 3, "pf": 1691.9, "record": "11-3", "result": "Playoff exit", "season": "2022", "seed": 2, "t": 0, "w": 11}, {"finish": 4, "l": 5, "pf": 1813.8, "record": "8-5", "result": "Playoff exit", "season": "2021", "seed": 4, "t": 0, "w": 8}, {"finish": 1, "l": 5, "pf": 1638.6, "record": "8-5", "result": "Champion", "season": "2020", "seed": 3, "t": 0, "w": 8}, {"finish": 5, "l": 6, "pf": 1532.8, "record": "7-6", "result": "Playoff exit", "season": "2019", "seed": 5, "t": 0, "w": 7}], "jroberts83": [{"finish": 9, "l": 8, "pf": 1609.3, "record": "6-8", "result": "Missed playoffs", "season": "2023", "seed": 9, "t": 0, "w": 6}, {"finish": 9, "l": 9, "pf": 1599.4, "record": "5-9", "result": "Missed playoffs", "season": "2022", "seed": 9, "t": 0, "w": 5}, {"finish": 2, "l": 5, "pf": 1709.2, "record": "8-5", "result": "Runner-up", "season": "2021", "seed": 5, "t": 0, "w": 8}, {"finish": 7, "l": 6, "pf": 1518.4, "record": "7-6", "result": "Missed playoffs", "season": "2020", "seed": 7, "t": 0, "w": 7}], "kingofwakanda52": [{"finish": 3, "l": 4, "pf": 1189.6, "record": "6-4", "result": "Playoff exit", "season": "2026", "seed": 3, "t": 0, "w": 6}, {"finish": 5, "l": 5, "pf": 1562.0, "record": "8-5-1", "result": "Playoff exit", "season": "2025", "seed": 5, "t": 1, "w": 8}, {"finish": 7, "l": 8, "pf": 1629.2, "record": "6-8", "result": "Missed playoffs", "season": "2024", "seed": 7, "t": 0, "w": 6}, {"finish": 7, "l": 6, "pf": 1592.7, "record": "8-6", "result": "Missed playoffs", "season": "2023", "seed": 7, "t": 0, "w": 8}, {"finish": 1, "l": 7, "pf": 1713.8, "record": "7-7", "result": "Co-champion", "season": "2022", "seed": 6, "t": 0, "w": 7}, {"finish": 10, "l": 9, "pf": 1553.0, "record": "4-9", "result": "Missed playoffs", "season": "2021", "seed": 10, "t": 0, "w": 4}, {"finish": 12, "l": 10, "pf": 1369.0, "record": "3-10", "result": "Missed playoffs", "season": "2020", "seed": 12, "t": 0, "w": 3}], "ptoJoe": [{"finish": 5, "l": 4, "pf": 1138.2, "record": "6-4", "result": "Playoff exit", "season": "2026", "seed": 5, "t": 0, "w": 6}, {"finish": 7, "l": 8, "pf": 1458.1, "record": "6-8", "result": "Missed playoffs", "season": "2025", "seed": 7, "t": 0, "w": 6}, {"finish": 5, "l": 6, "pf": 1834.5, "record": "8-6", "result": "Playoff exit", "season": "2024", "seed": 5, "t": 0, "w": 8}, {"finish": 6, "l": 6, "pf": 1673.1, "record": "8-6", "result": "Playoff exit", "season": "2023", "seed": 6, "t": 0, "w": 8}, {"finish": 1, "l": 3, "pf": 1864.2, "record": "11-3", "result": "Co-champion", "season": "2022", "seed": 1, "t": 0, "w": 11}, {"finish": 1, "l": 2, "pf": 1776.1, "record": "11-2", "result": "Champion", "season": "2021", "seed": 1, "t": 0, "w": 11}, {"finish": 6, "l": 6, "pf": 1615.4, "record": "7-6", "result": "Playoff exit", "season": "2020", "seed": 6, "t": 0, "w": 7}, {"finish": 3, "l": 5, "pf": 1548.6, "record": "8-5", "result": "Playoff exit", "season": "2019", "seed": 4, "t": 0, "w": 8}], "pv21": [{"finish": 8, "l": 8, "pf": 1430.6, "record": "6-8", "result": "Missed playoffs", "season": "2025", "seed": 8, "t": 0, "w": 6}], "realtor1234": [{"finish": 9, "l": 8, "pf": 1289.3, "record": "6-8", "result": "Missed playoffs", "season": "2024", "seed": 9, "t": 0, "w": 6}], "streetlegaltony": [{"finish": 4, "l": 4, "pf": 1164.6, "record": "6-4", "result": "Playoff exit", "season": "2026", "seed": 4, "t": 0, "w": 6}, {"finish": 3, "l": 4, "pf": 1821.7, "record": "10-4", "result": "Playoff exit", "season": "2025", "seed": 2, "t": 0, "w": 10}, {"finish": 1, "l": 2, "pf": 1739.9, "record": "12-2", "result": "Champion", "season": "2024", "seed": 1, "t": 0, "w": 12}, {"finish": 10, "l": 9, "pf": 1607.0, "record": "5-9", "result": "Missed playoffs", "season": "2023", "seed": 10, "t": 0, "w": 5}, {"finish": 5, "l": 6, "pf": 1610.9, "record": "8-6", "result": "Playoff exit", "season": "2022", "seed": 5, "t": 0, "w": 8}, {"finish": 7, "l": 6, "pf": 1479.7, "record": "7-6", "result": "Missed playoffs", "season": "2021", "seed": 7, "t": 0, "w": 7}, {"finish": 2, "l": 5, "pf": 1614.9, "record": "8-5", "result": "Runner-up", "season": "2020", "seed": 4, "t": 0, "w": 8}, {"finish": 9, "l": 8, "pf": 1554.3, "record": "5-8", "result": "Missed playoffs", "season": "2019", "seed": 9, "t": 0, "w": 5}], "videogameyankee": [{"finish": 1, "l": 2, "pf": 1307.6, "record": "8-2", "result": "Playoff exit", "season": "2026", "seed": 1, "t": 0, "w": 8}, {"finish": 2, "l": 3, "pf": 1855.5, "record": "11-3", "result": "Runner-up", "season": "2025", "seed": 1, "t": 0, "w": 11}, {"finish": 3, "l": 5, "pf": 1784.9, "record": "9-5", "result": "Playoff exit", "season": "2024", "seed": 3, "t": 0, "w": 9}, {"finish": 2, "l": 6, "pf": 1688.9, "record": "8-6", "result": "Runner-up", "season": "2023", "seed": 5, "t": 0, "w": 8}, {"finish": 4, "l": 6, "pf": 1686.2, "record": "8-6", "result": "Playoff exit", "season": "2022", "seed": 4, "t": 0, "w": 8}, {"finish": 2, "l": 3, "pf": 1688.7, "record": "10-3", "result": "Playoff exit", "season": "2021", "seed": 2, "t": 0, "w": 10}, {"finish": 3, "l": 4, "pf": 1807.0, "record": "9-4", "result": "Playoff exit", "season": "2020", "seed": 1, "t": 0, "w": 9}]}</script>
+  <script>
+  (function () {
+    var data = JSON.parse(document.getElementById('resume-data').textContent);
+    var sel = document.getElementById('resume-select');
+    var body = document.getElementById('resume-body');
+    var foot = document.getElementById('resume-foot');
+
+    function esc(t) {
+      return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+        return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
+      });
+    }
+
+    function render(name) {
+      var rows = data[name] || [];
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="6" class="dim">No seasons on record.</td></tr>';
+        foot.innerHTML = '';
+        return;
+      }
+      var w = 0, l = 0, t = 0, pf = 0, titles = 0;
+      body.innerHTML = rows.map(function (r) {
+        w += r.w; l += r.l; t += r.t; pf += r.pf;
+        var big = (r.result === 'Champion' || r.result === 'Co-champion');
+        if (big) titles++;
+        var cls = big ? 'resume-title' : (r.result === 'Runner-up' ? 'resume-second' : '');
+        return '<tr>' +
+          '<td class="col-rank"><strong>' + esc(r.season) + '</strong></td>' +
+          '<td class="col-record">' + esc(r.record) + '</td>' +
+          '<td class="col-pf">' + Number(r.pf).toFixed(1) + '</td>' +
+          '<td class="col-pf">' + (r.seed || '—') + '</td>' +
+          '<td class="col-pf">' + (r.finish || '—') + '</td>' +
+          '<td class="' + cls + '">' + esc(r.result) + '</td>' +
+        '</tr>';
+      }).join('');
+      var g = w + l + t;
+      foot.innerHTML = '<tr><td><strong>' + esc(name) + '</strong></td>' +
+        '<td class="col-record"><strong>' + w + '–' + l + (t ? '–' + t : '') + '</strong></td>' +
+        '<td class="col-pf"><strong>' + pf.toFixed(1) + '</strong></td>' +
+        '<td colspan="3"><span class="dim">' + rows.length + ' season' + (rows.length === 1 ? '' : 's') +
+        ' · ' + g + ' games · ' +
+        (g ? ((w + 0.5 * t) / g).toFixed(3) : '—') + ' win% · ' +
+        (titles ? titles + ' title' + (titles === 1 ? '' : 's') : 'no titles') + '</span></td></tr>';
+    }
+
+    sel.addEventListener('change', function () { render(sel.value); });
+    render(sel.value);
+  })();
+  </script>
+</section>
+
+<div class="rule rule-single"></div>
+
 <!-- ================================================== RIVALRY FILE -->
 <section id="rivalry">
-  <div class="kicker">── Chapter IV · The Rivalry File ──</div>
+  <div class="kicker">── Chapter V · The Rivalry File ──</div>
   <p class="section-blurb">The most-played grudges in league history, plus the tightest and the ugliest of the lot.</p>
 
   <div class="hof-rivalry-cards">
@@ -1089,7 +1176,7 @@
 
 <!-- ================================================== DRAFT LEDGER -->
 <section id="drafts">
-  <div class="kicker">── Chapter V · The Draft Ledger ──</div>
+  <div class="kicker">── Chapter VI · The Draft Ledger ──</div>
   <p class="section-blurb">Every draft graded on what each pick actually returned against what that round historically paid. Half-PPR points, full season.</p>
 
   
@@ -1976,7 +2063,7 @@
 
 <!-- ================================================== LEDGER OF DEALS -->
 <section id="deals">
-  <div class="kicker">── Chapter VI · The Ledger of Deals ──</div>
+  <div class="kicker">── Chapter VII · The Ledger of Deals ──</div>
   <p class="section-blurb">23 trades and 3914 total roster moves on record. Some were strategy. Most were panic.</p>
   <div class="hof-scroll">
     <table class="rankings-table hof-table">
@@ -2232,7 +2319,7 @@
 
 <!-- ================================================== BENCH FILE -->
 <section id="bench">
-  <div class="kicker">── Chapter VII · The Bench File ──</div>
+  <div class="kicker">── Chapter VIII · The Bench File ──</div>
   <p class="section-blurb">Points left sitting on the bench. Every lineup has one regret; this is the ledger of them. Best-ball record replays
     each week as though the optimal lineup had been started — a measure of talent wasted on hesitation.</p>
   <div class="hof-scroll">
@@ -2245,8 +2332,7 @@
           <th class="col-pf">Per Week</th>
           <th>Worst Week</th>
           <th class="col-pf">Clean Sheets</th>
-          <th class="col-record">Best-Ball</th>
-          <th class="col-pf">Gain</th>
+          <th class="col-pf">Wins Left</th>
         </tr>
       </thead>
       <tbody>
@@ -2258,8 +2344,7 @@
           <td class="col-pf">41.5</td>
           <td class="dim">104.0 pts · 2022 W9</td>
           <td class="col-pf">0</td>
-          <td class="col-record">65-40</td>
-          <td class="col-pf"><strong>+8</strong></td>
+          <td class="col-pf"><strong>30</strong></td>
         </tr>
         
         <tr>
@@ -2269,8 +2354,7 @@
           <td class="col-pf">40.2</td>
           <td class="dim">98.7 pts · 2024 W14</td>
           <td class="col-pf">0</td>
-          <td class="col-record">60-45</td>
-          <td class="col-pf"><strong>+-1</strong></td>
+          <td class="col-pf"><strong>25</strong></td>
         </tr>
         
         <tr>
@@ -2280,8 +2364,7 @@
           <td class="col-pf">39.9</td>
           <td class="dim">90.6 pts · 2021 W4</td>
           <td class="col-pf">2</td>
-          <td class="col-record">58-47</td>
-          <td class="col-pf"><strong>+-7</strong></td>
+          <td class="col-pf"><strong>24</strong></td>
         </tr>
         
         <tr>
@@ -2291,8 +2374,7 @@
           <td class="col-pf">37.4</td>
           <td class="dim">97.6 pts · 2026 W4</td>
           <td class="col-pf">0</td>
-          <td class="col-record">59-46</td>
-          <td class="col-pf"><strong>+3</strong></td>
+          <td class="col-pf"><strong>27</strong></td>
         </tr>
         
         <tr>
@@ -2302,8 +2384,7 @@
           <td class="col-pf">36.6</td>
           <td class="dim">83.9 pts · 2019 W1</td>
           <td class="col-pf">1</td>
-          <td class="col-record">47-58</td>
-          <td class="col-pf"><strong>+8</strong></td>
+          <td class="col-pf"><strong>33</strong></td>
         </tr>
         
         <tr>
@@ -2313,8 +2394,7 @@
           <td class="col-pf">41.7</td>
           <td class="dim">104.0 pts · 2024 W8</td>
           <td class="col-pf">0</td>
-          <td class="col-record">51-41</td>
-          <td class="col-pf"><strong>+9</strong></td>
+          <td class="col-pf"><strong>26</strong></td>
         </tr>
         
         <tr>
@@ -2324,8 +2404,7 @@
           <td class="col-pf">33.4</td>
           <td class="dim">76.0 pts · 2019 W4</td>
           <td class="col-pf">2</td>
-          <td class="col-record">44-61</td>
-          <td class="col-pf"><strong>+-10</strong></td>
+          <td class="col-pf"><strong>20</strong></td>
         </tr>
         
         <tr>
@@ -2335,8 +2414,7 @@
           <td class="col-pf">37.2</td>
           <td class="dim">83.6 pts · 2020 W12</td>
           <td class="col-pf">1</td>
-          <td class="col-record">60-32</td>
-          <td class="col-pf"><strong>+-3</strong></td>
+          <td class="col-pf"><strong>16</strong></td>
         </tr>
         
         <tr>
@@ -2346,8 +2424,7 @@
           <td class="col-pf">37.2</td>
           <td class="dim">83.5 pts · 2021 W9</td>
           <td class="col-pf">0</td>
-          <td class="col-record">36-56</td>
-          <td class="col-pf"><strong>+-2</strong></td>
+          <td class="col-pf"><strong>27</strong></td>
         </tr>
         
         <tr>
@@ -2357,8 +2434,7 @@
           <td class="col-pf">36.5</td>
           <td class="dim">82.0 pts · 2022 W3</td>
           <td class="col-pf">0</td>
-          <td class="col-record">28-26</td>
-          <td class="col-pf"><strong>+2</strong></td>
+          <td class="col-pf"><strong>19</strong></td>
         </tr>
         
         <tr>
@@ -2368,8 +2444,7 @@
           <td class="col-pf">35.8</td>
           <td class="dim">87.8 pts · 2019 W1</td>
           <td class="col-pf">0</td>
-          <td class="col-record">21-32</td>
-          <td class="col-pf"><strong>+-1</strong></td>
+          <td class="col-pf"><strong>14</strong></td>
         </tr>
         
         <tr>
@@ -2379,8 +2454,7 @@
           <td class="col-pf">46.3</td>
           <td class="dim">83.2 pts · 2026 W1</td>
           <td class="col-pf">0</td>
-          <td class="col-record">21-17</td>
-          <td class="col-pf"><strong>+4</strong></td>
+          <td class="col-pf"><strong>10</strong></td>
         </tr>
         
         <tr>
@@ -2390,8 +2464,7 @@
           <td class="col-pf">27.8</td>
           <td class="dim">64.4 pts · 2023 W4</td>
           <td class="col-pf">3</td>
-          <td class="col-record">22-32</td>
-          <td class="col-pf"><strong>+-4</strong></td>
+          <td class="col-pf"><strong>11</strong></td>
         </tr>
         
         <tr>
@@ -2401,8 +2474,7 @@
           <td class="col-pf">43.2</td>
           <td class="dim">74.1 pts · 2019 W4</td>
           <td class="col-pf">2</td>
-          <td class="col-record">13-14</td>
-          <td class="col-pf"><strong>+3</strong></td>
+          <td class="col-pf"><strong>9</strong></td>
         </tr>
         
         <tr>
@@ -2412,8 +2484,7 @@
           <td class="col-pf">26.8</td>
           <td class="dim">61.2 pts · 2025 W9</td>
           <td class="col-pf">0</td>
-          <td class="col-record">1-23</td>
-          <td class="col-pf"><strong>+-5</strong></td>
+          <td class="col-pf"><strong>2</strong></td>
         </tr>
         
         <tr>
@@ -2423,8 +2494,7 @@
           <td class="col-pf">42.8</td>
           <td class="dim">80.9 pts · 2019 W1</td>
           <td class="col-pf">1</td>
-          <td class="col-record">3-10</td>
-          <td class="col-pf"><strong>+1</strong></td>
+          <td class="col-pf"><strong>5</strong></td>
         </tr>
         
         <tr>
@@ -2434,8 +2504,7 @@
           <td class="col-pf">38.3</td>
           <td class="dim">67.8 pts · 2024 W8</td>
           <td class="col-pf">0</td>
-          <td class="col-record">4-10</td>
-          <td class="col-pf"><strong>+-1</strong></td>
+          <td class="col-pf"><strong>3</strong></td>
         </tr>
         
         <tr>
@@ -2445,8 +2514,7 @@
           <td class="col-pf">37.6</td>
           <td class="dim">83.6 pts · 2024 W13</td>
           <td class="col-pf">0</td>
-          <td class="col-record">5-9</td>
-          <td class="col-pf"><strong>+-1</strong></td>
+          <td class="col-pf"><strong>4</strong></td>
         </tr>
         
         <tr>
@@ -2456,8 +2524,7 @@
           <td class="col-pf">39.5</td>
           <td class="dim">68.8 pts · 2019 W13</td>
           <td class="col-pf">0</td>
-          <td class="col-record">7-6</td>
-          <td class="col-pf"><strong>+-2</strong></td>
+          <td class="col-pf">—</td>
         </tr>
         
         <tr>
@@ -2467,8 +2534,7 @@
           <td class="col-pf">38.2</td>
           <td class="dim">76.5 pts · 2019 W7</td>
           <td class="col-pf">0</td>
-          <td class="col-record">9-4</td>
-          <td class="col-pf"><strong>+2</strong></td>
+          <td class="col-pf"><strong>4</strong></td>
         </tr>
         
         <tr>
@@ -2478,8 +2544,7 @@
           <td class="col-pf">37.8</td>
           <td class="dim">63.4 pts · 2019 W3</td>
           <td class="col-pf">1</td>
-          <td class="col-record">4-9</td>
-          <td class="col-pf"><strong>+-3</strong></td>
+          <td class="col-pf"><strong>3</strong></td>
         </tr>
         
         <tr>
@@ -2489,8 +2554,7 @@
           <td class="col-pf">30.9</td>
           <td class="dim">58.8 pts · 2025 W13</td>
           <td class="col-pf">0</td>
-          <td class="col-record">6-8</td>
-          <td class="col-pf">—</td>
+          <td class="col-pf"><strong>2</strong></td>
         </tr>
         
         <tr>
@@ -2500,22 +2564,22 @@
           <td class="col-pf">39.0</td>
           <td class="dim">67.0 pts · 2026 W3</td>
           <td class="col-pf">0</td>
-          <td class="col-record">6-4</td>
-          <td class="col-pf"><strong>+2</strong></td>
+          <td class="col-pf"><strong>4</strong></td>
         </tr>
         
       </tbody>
     </table>
   </div>
-  <p class="hof-footnote">Clean sheets = weeks with nothing of value left on the bench. Gain = wins a perfect lineup would have added
-    (best-ball is slot-blind: the top scorers on the roster, regardless of position).</p>
+  <p class="hof-footnote">Clean sheets = weeks with nothing of value left on the bench. <strong>Wins left</strong> = regular-season
+    games lost that a perfect lineup would have won against the score the opponent actually posted — always zero or better, and
+    slot-blind (it assumes the top scorers on the roster start, regardless of position).</p>
 </section>
 
 <div class="rule rule-single"></div>
 
 <!-- ================================================== TRADE LEDGER -->
 <section id="trades">
-  <div class="kicker">── Chapter VIII · The Trade Ledger ──</div>
+  <div class="kicker">── Chapter IX · The Trade Ledger ──</div>
   <p class="section-blurb">21 trades graded on what each side actually received afterwards — points scored by the
     acquired players, rest of season, in the new colours. Verdicts are unforgiving and entirely hindsight-based, as is tradition.</p>
 
@@ -2901,85 +2965,6 @@
 
 <div class="rule rule-single"></div>
 
-<!-- ================================================== AWARDS -->
-<section id="awards">
-  <div class="kicker accent">── Chapter IX · Awards Night ──</div>
-  <p class="section-blurb">The inaugural class, elected by arithmetic rather than a committee. Nobody campaigned; nobody won a vote.</p>
-  <div class="hof-awards">
-    
-    <div class="award-card">
-      <div class="award-title">Most Valuable Manager</div>
-      <div class="award-winner">streetlegaltony</div>
-      <div class="award-value">12-2</div>
-      <div class="award-detail">2024 · 1739.9 PF · finish 1st</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">The Wooden Spoon</div>
-      <div class="award-winner">DougC71</div>
-      <div class="award-value">1-12</div>
-      <div class="award-detail">2021 · 1252.3 PF · the floor of the league</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">Scoring King</div>
-      <div class="award-winner">ptoJoe</div>
-      <div class="award-value">1864.2</div>
-      <div class="award-detail">2022 · 11-3</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">Draft Wizard</div>
-      <div class="award-winner">ptoJoe</div>
-      <div class="award-value">+1742</div>
-      <div class="award-detail">Career surplus points over round expectation</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">Trade Shark</div>
-      <div class="award-winner">kingofwakanda52</div>
-      <div class="award-value">+484</div>
-      <div class="award-detail">Career net points won in trades</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">The Cursed</div>
-      <div class="award-winner">DaMojohSr</div>
-      <div class="award-value">-5.27</div>
-      <div class="award-detail">Wins minus all-play expectation — the schedule's victim</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">Bench Regret</div>
-      <div class="award-winner">gonzogust</div>
-      <div class="award-value">46.3/wk</div>
-      <div class="award-detail">1758 points left on the bench, career</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">The Coulda-Been</div>
-      <div class="award-winner">kingofwakanda52</div>
-      <div class="award-value">+9 W</div>
-      <div class="award-detail">Would be 51-41 with perfect lineups</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">Cleanest Lineup</div>
-      <div class="award-winner">DaRaven70</div>
-      <div class="award-value">26.8/wk</div>
-      <div class="award-detail">Fewest points left on the bench per week</div>
-    </div>
-    
-    <div class="award-card">
-      <div class="award-title">Iron Man</div>
-      <div class="award-winner">ptoJoe</div>
-      <div class="award-value">8 seasons</div>
-      <div class="award-detail">105 games played, never absent</div>
-    </div>
-    
-  </div>
-</section>
-
 <footer class="colophon">
   <div class="rule rule-double"></div>
   <p>
@@ -2991,7 +2976,7 @@
   <p class="archive-note">
     <a href="index.html">Latest Edition</a> ·
     <a href="editions/index.html">Past Editions</a> ·
-    Generated 2026-11-24 03:41 UTC
+    Generated 2026-11-24 03:58 UTC
   </p>
 </footer>
 
