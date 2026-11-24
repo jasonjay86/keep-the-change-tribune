@@ -163,6 +163,19 @@ def player_week_points(season: str, weeks: list[int], player_ids: set[str], refr
 
 # ---------------------------------------------------------------- compute
 
+# ---------------------------------------------------------------- adjudications
+# Seasons where the platform's bracket is not the whole story. Applied after the
+# season loop; the manager roll-up reads "champions" when present.
+CO_CHAMPIONSHIPS = {
+    "2022": {
+        "champions": ["ptoJoe", "kingofwakanda52"],
+        "note": ("Title week abandoned: the Bills–Bengals game was suspended after "
+                 "Damar Hamlin's collapse and never resumed. ptoJoe and kingofwakanda52 "
+                 "agreed to split the pot and share the championship."),
+    },
+}
+
+
 def fmt(n, nd=1):
     return f"{n:.{nd}f}" if isinstance(n, (int, float)) else "—"
 
@@ -173,6 +186,14 @@ def ordinal(n: int) -> str:
     else:
         suf = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suf}"
+
+
+def _last_meeting(g: dict) -> str:
+    """'2026 W9 · jasonjay86 119.7-103.0' — winner first, so the row reads plainly."""
+    a_won = g["a_pts"] > g["b_pts"]
+    win, lose = (g["a"], g["b"]) if a_won else (g["b"], g["a"])
+    hi, lo = max(g["a_pts"], g["b_pts"]), min(g["a_pts"], g["b_pts"])
+    return f"{g['season']} W{g['week']} · {win} {hi:.1f}–{lo:.1f}"
 
 
 def letter_grade(z: float) -> str:
@@ -421,11 +442,27 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
 
         season_totals.extend(ts.values())
 
+    # ---------- adjudications (co-championships etc.)
+    for srow in seasons_out:
+        adj = CO_CHAMPIONSHIPS.get(srow["season"])
+        if not adj:
+            continue
+        srow["co_champions"] = True
+        srow["champions"] = adj["champions"]
+        recs = {r["manager"]: r for r in season_totals if r["season"] == srow["season"]}
+        srow["champion_record"] = " / ".join(
+            f"{recs[n]['w']}-{recs[n]['l']}" for n in adj["champions"] if n in recs) or srow["champion_record"]
+        srow["co_note"] = adj["note"]
+        # both are champions; there is no runner-up in a shared title
+        srow["runner_up"] = None
+        srow["runner_up_record"] = ""
+        srow["runner_up_team"] = ""
+
     # ---------- manager roll-up
     def m(mgr):
         return managers.setdefault(mgr, {
             "name": mgr, "team": "", "seasons": set(), "w": 0, "l": 0, "t": 0,
-            "pf": 0.0, "pa": 0.0, "weeks": 0, "titles": [], "runner_ups": [],
+            "pf": 0.0, "pa": 0.0, "weeks": 0, "titles": [], "co_titles": [], "runner_ups": [],
             "playoff_apps": 0, "finishes": [], "weekly_highs": 0,
             "best_score": 0.0, "worst_score": 9999.0, "best_win": 0.0, "worst_loss": 0.0,
             "trades": 0, "waivers": 0, "fa": 0, "draft_surplus": 0.0, "draft_grades": [],
@@ -446,7 +483,11 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         m(mgr)["playoff_apps"] = len(season_set)
 
     for srow in seasons_out:
-        if srow["champion"]:
+        if srow.get("co_champions"):
+            for name in srow["champions"]:
+                m(name)["titles"].append(srow["season"])
+                m(name)["co_titles"].append(srow["season"])
+        elif srow["champion"]:
             m(srow["champion"])["titles"].append(srow["season"])
         if srow["runner_up"]:
             m(srow["runner_up"])["runner_ups"].append(srow["season"])
@@ -540,7 +581,8 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             "ppg": round(d["pf"] / d["weeks"], 1) if d["weeks"] else 0.0,
             "papg": round(d["pa"] / d["weeks"], 1) if d["weeks"] else 0.0,
             "diff": round(d["pf"] - d["pa"], 1),
-            "titles": d["titles"], "runner_ups": d["runner_ups"],
+            "titles": d["titles"], "co_titles": d.get("co_titles", []),
+            "runner_ups": d["runner_ups"],
             "playoff_apps": d["playoff_apps"],
             "playoff_record": f"{d.get('pw',0)}-{d.get('pl',0)}",
             "best_finish": best_fin, "worst_finish": worst_fin,
@@ -632,11 +674,10 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         rivalries.append({
             "a": x, "b": y, "games": len(gs), "a_wins": xw, "b_wins": yw, "ties": ties,
             "avg_margin": round(statistics.mean(abs(g["a_pts"] - g["b_pts"]) for g in gs), 2),
-            "closest": f"{closest['season']} W{closest['week']} · {abs(closest['a_pts']-closest['b_pts']):.1f}",
+            "closest": f"{closest['season']} W{closest['week']} · {abs(closest['a_pts']-closest['b_pts']):.2f}",
             "biggest": f"{biggest['season']} W{biggest['week']} · {abs(biggest['a_pts']-biggest['b_pts']):.1f}",
             "streak": f"{streak_holder} · {streak_len}" if streak_holder else "—",
-            "last": (f"{gs[-1]['season']} W{gs[-1]['week']}: "
-                     f"{gs[-1]['a_pts']:.1f}–{gs[-1]['b_pts']:.1f} ({gs[-1]['a']})") if gs else "",
+            "last": _last_meeting(gs[-1]) if gs else "",
         })
     rivalries.sort(key=lambda r: -r["games"])
 
@@ -704,6 +745,27 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             cells[a][b] = f"{r['a_wins']}-{r['b_wins']}" + (f"-{r['ties']}" if r["ties"] else "")
             cells[b][a] = f"{r['b_wins']}-{r['a_wins']}" + (f"-{r['ties']}" if r["ties"] else "")
 
+    # ---------- per-manager H2H detail (drives the dropdown view)
+    h2h_detail: dict[str, list] = {n: [] for n in h2h_managers}
+    for r in rivalries:
+        a, b = r["a"], r["b"]
+        if a in h2h_detail:
+            h2h_detail[a].append({
+                "opp": b, "w": r["a_wins"], "l": r["b_wins"], "t": r["ties"],
+                "games": r["games"], "avg_margin": r["avg_margin"],
+                "closest": r["closest"], "biggest": r["biggest"],
+                "streak": r["streak"], "last": r["last"],
+            })
+        if b in h2h_detail:
+            h2h_detail[b].append({
+                "opp": a, "w": r["b_wins"], "l": r["a_wins"], "t": r["ties"],
+                "games": r["games"], "avg_margin": r["avg_margin"],
+                "closest": r["closest"], "biggest": r["biggest"],
+                "streak": r["streak"], "last": r["last"],
+            })
+    for name, rows in h2h_detail.items():
+        rows.sort(key=lambda x: (-x["games"], x["opp"]))
+
     # ---------- reigning champion
     reigning = next((s["champion"] for s in reversed(seasons_out) if s.get("champion")), None)
 
@@ -717,6 +779,9 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         "rivalries": rivalries,
         "h2h_managers": h2h_managers,
         "h2h_cells": cells,
+        "h2h_detail": h2h_detail,
+        "titles_awarded": sum(len(x["titles"]) for x in mrows),
+        "shared_titles": sum(1 for x in seasons_out if x.get("co_champions")),
         "drafts": sorted(draft_teams, key=lambda d: (d["season"], -d["surplus"])),
         "drafts_by_season": drafts_by_season,
         "draft_highlights": {

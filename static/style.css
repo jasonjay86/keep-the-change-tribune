@@ -710,3 +710,86 @@ html, body {
   font-size: 12px;
 }
 @media (max-width: 700px) { .tribune-nav .nav-note { display: none; } }
+
+/* ---- co-championship marks ---- */
+.co-tag {
+  display: inline-block;
+  font-family: "Old Standard TT", serif;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.ring--shared { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.hof-adjudication {
+  text-align: left;
+  max-width: 86%;
+  border-top: 1px solid rgba(42, 38, 32, 0.25);
+  border-bottom: 1px solid rgba(42, 38, 32, 0.25);
+  padding: 10px 4px;
+  margin: 18px auto 0;
+  font-style: normal;
+}
+
+/* ---- head-to-head picker ---- */
+.h2h-picker {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 6px 0 14px;
+  font-family: "Old Standard TT", serif;
+}
+.h2h-picker label {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faded);
+}
+.h2h-picker select {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink);
+  background: rgba(255, 250, 230, 0.7);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--accent);
+  padding: 7px 12px;
+  min-width: 240px;
+  cursor: pointer;
+}
+.h2h-picker select:focus { outline: 2px solid rgba(110, 26, 26, 0.35); outline-offset: 1px; }
+.h2h-hint {
+  font-family: "Old Standard TT", serif;
+  font-style: italic;
+  font-size: 11px;
+  color: var(--ink-faded);
+  letter-spacing: 0.06em;
+}
+.h2h-table { font-size: 13px; }
+.h2h-table td { vertical-align: baseline; }
+.h2h-table tfoot td {
+  border-top: 2px solid var(--rule);
+  border-bottom: none;
+  padding-top: 10px;
+}
+.h2h-lead { color: var(--accent); font-weight: 700; }
+.h2h-trail { color: var(--ink-faded); }
+@media (max-width: 700px) {
+  .h2h-picker select { min-width: 100%; }
+  .hof-adjudication { max-width: 100%; }
+}
+
+/* ---- head-to-head polish ---- */
+.h2h-table tbody td { padding: 10px 10px; }
+.h2h-table .col-record { text-align: right; }
+.h2h-table thead th.col-record { text-align: right; }
+.h2h-table thead th:first-child { width: 22%; }
+.h2h-picker { align-items: center; }
+.h2h-picker select { min-width: 220px; }
