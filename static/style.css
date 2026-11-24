@@ -454,3 +454,259 @@ html, body {
   body { background: #fff; }
   .paper { box-shadow: none; margin: 0; max-width: none; }
 }
+/* =============================================================
+   HALL OF FAME — archival supplement to the Tribune
+   Same newsprint stock, heavier rules, gold-leaf accents.
+   ============================================================= */
+
+.paper--hof { max-width: 1080px; }
+
+.hof-nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 10px 0;
+  font-family: "Old Standard TT", serif;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.hof-nav a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 2px;
+}
+.hof-nav a:hover { border-bottom-color: var(--accent); }
+
+.hof-lede, .hof-footnote {
+  font-family: "Old Standard TT", serif;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  max-width: 78%;
+  margin: 6px auto 18px;
+  font-style: italic;
+  color: var(--ink);
+}
+.hof-footnote { font-size: 12px; color: var(--ink-faded); margin-top: 10px; }
+
+/* ---- inductee plaques ---- */
+.hof-plaques {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-top: 10px;
+}
+.plaque {
+  border: 1px solid var(--rule);
+  border-top: 4px solid var(--accent);
+  padding: 14px 12px 16px;
+  text-align: center;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 230, 0.55), rgba(232, 220, 191, 0.35));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+}
+.plaque--multi { border-top-width: 7px; background: linear-gradient(180deg, rgba(255, 245, 210, 0.75), rgba(230, 214, 170, 0.4)); }
+.plaque-rings { display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.ring {
+  font-family: "Old Standard TT", serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--newsprint);
+  background: var(--accent);
+  padding: 2px 7px;
+  border-radius: 1px;
+}
+.plaque-name {
+  font-family: "Playfair Display", serif;
+  font-weight: 900;
+  font-size: 21px;
+  line-height: 1.1;
+}
+.plaque-team {
+  font-family: "Old Standard TT", serif;
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faded);
+  margin-top: 3px;
+}
+.plaque-titles {
+  font-family: "Old Standard TT", serif;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: 8px;
+}
+.plaque-meta {
+  font-family: "Old Standard TT", serif;
+  font-size: 11px;
+  color: var(--ink-faded);
+  margin-top: 4px;
+  letter-spacing: 0.05em;
+}
+.plaque-meta--dim { opacity: 0.75; font-style: italic; }
+
+/* ---- tables ---- */
+.hof-scroll { overflow-x: auto; padding-bottom: 6px; }
+.hof-table--wide { font-size: 13px; min-width: 940px; }
+.hof-table--wide thead th { white-space: nowrap; }
+.hof-table--compact { font-size: 12px; }
+.dim { color: var(--ink-faded); }
+.dim-row { opacity: 0.72; }
+.hof-seasons { font-size: 11px; }
+.grade { font-family: "Playfair Display", serif; font-weight: 900; color: var(--accent); }
+
+/* ---- record book ---- */
+.hof-records { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.record-card {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  padding: 12px 12px 14px;
+  background: rgba(255, 250, 230, 0.45);
+}
+.record-label {
+  font-family: "Old Standard TT", serif;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faded);
+}
+.record-value {
+  font-family: "Playfair Display", serif;
+  font-weight: 900;
+  font-size: 30px;
+  line-height: 1.05;
+  color: var(--accent);
+  margin: 4px 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+.record-holder {
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  font-size: 15px;
+}
+.record-detail {
+  font-family: "Old Standard TT", serif;
+  font-style: italic;
+  font-size: 11px;
+  color: var(--ink-faded);
+  margin-top: 3px;
+}
+
+/* ---- rivalry cards ---- */
+.hof-rivalry-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin: 10px 0 22px;
+}
+.rivalry-card {
+  border-top: 2px solid var(--rule);
+  border-bottom: 1px solid rgba(42,38,32,0.35);
+  padding: 12px 10px;
+  text-align: center;
+  background: rgba(110, 26, 26, 0.035);
+}
+.rivalry-pair {
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.versus-sm { font-family: "UnifrakturMaguntia", serif; color: var(--accent); font-size: 15px; padding: 0 3px; }
+.rivalry-score {
+  font-family: "Playfair Display", serif;
+  font-weight: 900;
+  font-size: 26px;
+  color: var(--accent);
+  margin: 4px 0;
+  font-variant-numeric: tabular-nums;
+}
+.rivalry-meta {
+  font-family: "Old Standard TT", serif;
+  font-size: 11px;
+  color: var(--ink-faded);
+  letter-spacing: 0.04em;
+}
+
+/* ---- head-to-head matrix ---- */
+.hof-matrix { font-size: 11px; min-width: 780px; }
+.hof-matrix th.matrix-rowhead {
+  text-align: left;
+  white-space: nowrap;
+  font-family: "Old Standard TT", serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(42,38,32,0.18);
+}
+.hof-matrix thead th.matrix-col {
+  font-size: 10px;
+  text-align: center;
+  padding: 4px 2px;
+  color: var(--ink-faded);
+  border-bottom: 2px solid var(--rule);
+}
+.hof-matrix td.matrix-cell {
+  text-align: center;
+  padding: 5px 3px;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid rgba(42,38,32,0.1);
+}
+.matrix-cell--self { background: rgba(110,26,26,0.06); color: var(--ink-faded); }
+
+/* ---- draft ledger ---- */
+.hof-subhead {
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  font-size: 17px;
+  text-align: center;
+  margin: 22px 0 6px;
+  letter-spacing: 0.02em;
+}
+.hof-draft-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 8px 26px;
+}
+
+@media (max-width: 700px) {
+  .hof-lede, .hof-footnote { max-width: 100%; }
+  .paper--hof { max-width: none; }
+}
+
+/* ---- tribune nav (Hall of Fame link on every edition) ---- */
+.tribune-nav {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 11px 0 9px;
+  font-family: "Old Standard TT", serif;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faded);
+}
+.tribune-nav a {
+  color: var(--ink-faded);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+}
+.tribune-nav a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.tribune-nav a:first-child { color: var(--accent); }
+.tribune-nav .nav-dot { color: rgba(90, 81, 66, 0.5); }
+.tribune-nav .nav-note {
+  color: rgba(90, 81, 66, 0.85);
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  font-size: 12px;
+}
+@media (max-width: 700px) { .tribune-nav .nav-note { display: none; } }

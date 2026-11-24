@@ -42,7 +42,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
   </section>
   <footer class="colophon">
     <div class="rule rule-double"></div>
-    <p><a href="../index.html">&larr; Return to Latest Edition</a></p>
+    <p><a href="../hof.html">The Hall of Fame</a> &middot; <a href="../index.html">&larr; Return to Latest Edition</a></p>
   </footer>
 </div>
 </body>

@@ -4,6 +4,8 @@ rankings.json
 commentary.json
 preview.png
 cache/
+hof_cache/
+hof.json
 __pycache__/
 *.pyc
 .venv/

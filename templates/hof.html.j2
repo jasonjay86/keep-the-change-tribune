@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Keep The Change Hall of Fame — Est. 2019</title>
+<meta name="description" content="{{ league_name }} Hall of Fame: {{ totals.seasons }} seasons, {{ totals.managers }} managers, {{ totals.games }} games. Every champion, every record, every rivalry since {{ totals.first_season }}.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<div class="paper paper--hof">
+
+<header class="masthead">
+  <div class="edition-line">Vol. I · The Archives · {{ totals.first_season }}–{{ totals.last_season }}</div>
+  <h1 class="title">The Hall of Fame</h1>
+  <div class="subtitle">The {{ league_name }} League · {{ totals.seasons }} seasons · {{ totals.managers }} managers · {{ totals.games }} games</div>
+  <div class="rule rule-double"></div>
+  <nav class="hof-nav">
+    <a href="index.html">&larr; The Tribune</a>
+    <a href="#trophy-room">Trophy Room</a>
+    <a href="#record-book">Record Book</a>
+    <a href="#ledger">All-Time Ledger</a>
+    <a href="#rivalry">Rivalry File</a>
+    <a href="#drafts">Draft Ledger</a>
+    <a href="#deals">Ledger of Deals</a>
+  </nav>
+  <div class="rule rule-double"></div>
+</header>
+
+<!-- ================================================== INDUCTEE WALL -->
+<section class="hof-wall">
+  <div class="kicker accent">── The Wall of Champions ──</div>
+  <p class="hof-lede">
+    {% set champs = managers | selectattr('titles') | list %}
+    {{ champs|length }} of {{ totals.managers }} managers have had their name engraved. {{ champs|map(attribute='titles')|map('length')|sum }} championships have been awarded across
+ {{ totals.seasons }} seasons. Reigning champion: <strong>{{ reigning_champion or '—' }}</strong>.
+  </p>
+  <div class="hof-plaques">
+    {% for c in champs %}
+    <div class="plaque {% if c.titles|length > 1 %}plaque--multi{% endif %}">
+      <div class="plaque-rings">
+        {% for t in c.titles %}<span class="ring">{{ t }}</span>{% endfor %}
+      </div>
+      <div class="plaque-name">{{ c.name }}</div>
+      {% if c.team and c.team != c.name %}<div class="plaque-team">{{ c.team }}</div>{% endif %}
+      <div class="plaque-titles">{{ c.titles|length }} title{% if c.titles|length != 1 %}s{% endif %}</div>
+      <div class="plaque-meta">{{ c.record }} · {{ "%.3f"|format(c.pct) }} · {{ c.seasons }} season{% if c.seasons != 1 %}s{% endif %}</div>
+      {% if c.runner_ups %}<div class="plaque-meta plaque-meta--dim">Runner-up {{ c.runner_ups|join(', ') }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== TROPHY ROOM -->
+<section id="trophy-room">
+  <div class="kicker">── Chapter I · The Trophy Room ──</div>
+  <p class="section-blurb">Every season on record. Champion, runner-up, final score, and the man who owned the regular season — which, as ever, is not the same thing.</p>
+  <table class="rankings-table hof-table">
+    <thead>
+      <tr>
+        <th class="col-rank">Year</th>
+        <th>Champion</th>
+        <th class="col-record">Reg.</th>
+        <th>Runner-Up</th>
+        <th class="col-record">Reg.</th>
+        <th class="col-pf">Final</th>
+        <th>No. 1 Seed</th>
+        <th class="col-record">Seed Rec.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in seasons|reverse %}
+      <tr class="{% if loop.first and s.in_progress %}rank-row--top{% endif %}">
+        <td class="col-rank"><strong>{{ s.season }}</strong></td>
+        {% if s.champion %}
+          <td><strong>{{ s.champion }}</strong>{% if s.champion_team and s.champion_team != s.champion %} <em class="dim">({{ s.champion_team }})</em>{% endif %}</td>
+          <td class="col-record">{{ s.champion_record }}</td>
+        {% else %}
+          <td colspan="2" class="dim"><em>In progress — through Week {{ s.weeks_played }}, {{ s.teams }} teams</em></td>
+        {% endif %}
+        <td>{{ s.runner_up or '—' }}</td>
+        <td class="col-record">{{ s.runner_up_record or '—' }}</td>
+        <td class="col-pf">{{ s.final_score or '—' }}</td>
+        <td>{{ s.top_seed or '—' }}</td>
+        <td class="col-record">{{ s.top_seed_record or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== RECORD BOOK -->
+<section id="record-book">
+  <div class="kicker">── Chapter II · The Record Book ──</div>
+  <p class="section-blurb">Regular-season records unless stated. Ties and stat corrections honoured as the platform recorded them.</p>
+  <div class="numbers-grid hof-records">
+    {% for r in records %}
+    <div class="record-card">
+      <div class="record-label">{{ r.label }}</div>
+      <div class="record-value">{{ r.value }}</div>
+      <div class="record-holder">{{ r.holder }}</div>
+      <div class="record-detail">{{ r.detail }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== ALL-TIME LEDGER -->
+<section id="ledger">
+  <div class="kicker">── Chapter III · The All-Time Ledger ──</div>
+  <p class="section-blurb">Career regular-season totals, {{ totals.first_season }}–{{ totals.last_season }}. Wins tiebreak by percentage; titles outrank everything.</p>
+  <div class="hof-scroll">
+    <table class="rankings-table hof-table hof-table--wide">
+      <thead>
+        <tr>
+          <th class="col-rank">#</th>
+          <th>Manager</th>
+          <th class="col-record">Record</th>
+          <th class="col-pf">Win%</th>
+          <th class="col-pf">PF</th>
+          <th class="col-pf">PA</th>
+          <th class="col-pf">Diff</th>
+          <th class="col-pf">PPG</th>
+          <th class="col-pf">Titles</th>
+          <th class="col-pf">Playoffs</th>
+          <th class="col-pf">Best</th>
+          <th class="col-pf">Worst</th>
+          <th class="col-pf">High</th>
+          <th class="col-pf">Low</th>
+          <th class="col-pf">Streak</th>
+          <th class="col-pf">Luck</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in managers %}
+        <tr class="{% if loop.index == 1 %}rank-row--top{% endif %} {% if m.seasons == 1 %}dim-row{% endif %}">
+          <td class="col-rank">{{ loop.index }}</td>
+          <td>
+            <strong>{{ m.name }}</strong>
+            {% if m.team and m.team != m.name %}<em class="dim">({{ m.team }})</em>{% endif %}
+            <span class="dim hof-seasons">· {{ m.seasons }}y</span>
+          </td>
+          <td class="col-record">{{ m.record }}</td>
+          <td class="col-pf">{{ "%.3f"|format(m.pct) }}</td>
+          <td class="col-pf">{{ "%.1f"|format(m.pf) }}</td>
+          <td class="col-pf">{{ "%.1f"|format(m.pa) }}</td>
+          <td class="col-pf">{{ "%+.1f"|format(m.diff) }}</td>
+          <td class="col-pf">{{ "%.1f"|format(m.ppg) }}</td>
+          <td class="col-pf">{% if m.titles %}<strong>{{ m.titles|length }}</strong>{% else %}—{% endif %}</td>
+          <td class="col-pf">{{ m.playoff_apps }}</td>
+          <td class="col-pf">{{ m.best_finish if m.best_finish else '—' }}</td>
+          <td class="col-pf">{{ m.worst_finish if m.worst_finish else '—' }}</td>
+          <td class="col-pf">{{ "%.1f"|format(m.best_score) }}</td>
+          <td class="col-pf">{{ "%.1f"|format(m.worst_score) }}</td>
+          <td class="col-pf">{{ m.streak_w }}W</td>
+          <td class="col-pf">{{ "%+.2f"|format(m.luck) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="hof-footnote">Luck = actual wins minus all-play expected wins (what a team would have won playing every opponent, every week). Positive means the schedule smiled; negative means it did not.</p>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== RIVALRY FILE -->
+<section id="rivalry">
+  <div class="kicker">── Chapter IV · The Rivalry File ──</div>
+  <p class="section-blurb">The most-played grudges in league history, plus the tightest and the ugliest of the lot.</p>
+
+  <div class="hof-rivalry-cards">
+    {% for r in rivalries[:6] %}
+    <div class="rivalry-card">
+      <div class="rivalry-pair">{{ r.a }} <span class="versus-sm">v</span> {{ r.b }}</div>
+      <div class="rivalry-score">{{ r.a_wins }}–{{ r.b_wins }}{% if r.ties %}–{{ r.ties }}{% endif %}</div>
+      <div class="rivalry-meta">{{ r.games }} meetings · avg margin {{ "%.1f"|format(r.avg_margin) }}</div>
+      <div class="rivalry-meta dim">Closest {{ r.closest }}</div>
+      <div class="rivalry-meta dim">Current streak {{ r.streak }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h3 class="hof-subhead">The Full Head-to-Head</h3>
+  <p class="hof-footnote">Read across: row's record against the column.</p>
+  <div class="hof-scroll">
+    <table class="rankings-table hof-matrix">
+      <thead>
+        <tr>
+          <th class="matrix-rowhead">Manager</th>
+          {% for m in h2h_managers %}<th class="matrix-col">{{ loop.index }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in h2h_managers %}
+        <tr>
+          <th class="matrix-rowhead">{{ loop.index }}. {{ m }}</th>
+          {% for o in h2h_managers %}
+            {% if o == m %}
+              <td class="matrix-cell matrix-cell--self">—</td>
+            {% else %}
+              {% set cell = h2h_cells.get(m, {}).get(o) %}
+              <td class="matrix-cell">{% if cell %}{{ cell }}{% else %}<span class="dim">·</span>{% endif %}</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== DRAFT LEDGER -->
+<section id="drafts">
+  <div class="kicker">── Chapter V · The Draft Ledger ──</div>
+  <p class="section-blurb">Every draft graded on what each pick actually returned against what that round historically paid. Half-PPR points, full season.</p>
+
+  {% if draft_highlights.best_pick %}
+  <div class="hof-rivalry-cards">
+    <div class="rivalry-card">
+      <div class="record-label">Greatest Steal</div>
+      <div class="rivalry-pair">{{ draft_highlights.best_pick.player }}</div>
+      <div class="rivalry-score">{{ "%.0f"|format(draft_highlights.best_pick.points) }} pts</div>
+      <div class="rivalry-meta">{{ draft_highlights.best_pick.manager }} · {{ draft_highlights.best_pick.season }} · R{{ draft_highlights.best_pick.round }} pick {{ draft_highlights.best_pick.pick_no }}</div>
+    </div>
+    {% if draft_highlights.worst_pick %}
+    <div class="rivalry-card">
+      <div class="record-label">Sorriest Bust</div>
+      <div class="rivalry-pair">{{ draft_highlights.worst_pick.player }}</div>
+      <div class="rivalry-score">{{ "%.0f"|format(draft_highlights.worst_pick.points) }} pts</div>
+      <div class="rivalry-meta">{{ draft_highlights.worst_pick.manager }} · {{ draft_highlights.worst_pick.season }} · R{{ draft_highlights.worst_pick.round }} pick {{ draft_highlights.worst_pick.pick_no }}</div>
+    </div>
+    {% endif %}
+    {% if draft_highlights.top_scorer_pick %}
+    <div class="rivalry-card">
+      <div class="record-label">Best Player Ever Drafted</div>
+      <div class="rivalry-pair">{{ draft_highlights.top_scorer_pick.player }}</div>
+      <div class="rivalry-score">{{ "%.0f"|format(draft_highlights.top_scorer_pick.points) }} pts</div>
+      <div class="rivalry-meta">{{ draft_highlights.top_scorer_pick.manager }} · {{ draft_highlights.top_scorer_pick.season }} · pick {{ draft_highlights.top_scorer_pick.pick_no }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="hof-draft-grid">
+    {% for d in drafts_by_season %}
+    <div class="draft-block">
+      <h3 class="hof-subhead">{{ d.season }} Draft</h3>
+      <table class="rankings-table hof-table hof-table--compact">
+        <thead><tr><th class="col-rank">#</th><th>Manager</th><th class="col-pf">Grade</th><th class="col-pf">Surplus</th><th>Best Pick</th></tr></thead>
+        <tbody>
+          {% for t in d.teams %}
+          <tr>
+            <td class="col-rank">{{ t.rank }}</td>
+            <td>{{ t.manager }}</td>
+            <td class="col-pf grade">{{ t.grade }}</td>
+            <td class="col-pf">{{ "%+.0f"|format(t.surplus) }}</td>
+            <td class="dim">{{ t.best }}{% if t.best_pts %} ({{ "%.0f"|format(t.best_pts) }}){% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== LEDGER OF DEALS -->
+<section id="deals">
+  <div class="kicker">── Chapter VI · The Ledger of Deals ──</div>
+  <p class="section-blurb">{{ totals.trades }} trades and {{ totals.moves }} total roster moves on record. Some were strategy. Most were panic.</p>
+  <div class="hof-scroll">
+    <table class="rankings-table hof-table">
+      <thead>
+        <tr>
+          <th class="col-rank">#</th>
+          <th>Manager</th>
+          <th class="col-pf">Moves</th>
+          <th class="col-pf">Trades</th>
+          <th class="col-pf">Waivers</th>
+          <th class="col-pf">Free Agents</th>
+          <th class="col-pf">Moves/Season</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in managers|sort(attribute='moves', reverse=true) %}
+        <tr>
+          <td class="col-rank">{{ loop.index }}</td>
+          <td><strong>{{ m.name }}</strong></td>
+          <td class="col-pf">{{ m.moves }}</td>
+          <td class="col-pf">{{ m.trades }}</td>
+          <td class="col-pf">{{ m.waivers }}</td>
+          <td class="col-pf">{{ m.fa }}</td>
+          <td class="col-pf">{{ "%.1f"|format(m.moves / m.seasons) if m.seasons else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer class="colophon">
+  <div class="rule rule-double"></div>
+  <p>
+    The {{ league_name }} Hall of Fame is maintained by the Tribune Sports Desk from every
+    season the league has played on Sleeper, {{ totals.first_season }} to {{ totals.last_season }}.
+    Records are regular-season unless otherwise noted; playoff results appear in the Trophy Room.
+    Compiled from {{ totals.games }} games and {{ totals.weeks }} scoring weeks.
+  </p>
+  <p class="archive-note">
+    <a href="index.html">Latest Edition</a> ·
+    <a href="editions/index.html">Past Editions</a> ·
+    Generated {{ generated_at }}
+  </p>
+</footer>
+
+</div>
+</body>
+</html>
