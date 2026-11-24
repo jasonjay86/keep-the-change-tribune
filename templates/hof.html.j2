@@ -460,7 +460,9 @@
 <section id="trades">
   <div class="kicker">── Chapter VIII · The Trade Ledger ──</div>
   <p class="section-blurb">{{ trades|length }} trades graded on what each side actually received afterwards — points scored by the
-    acquired players, rest of season, in the new colours. Verdicts are unforgiving and entirely hindsight-based, as is tradition.</p>
+    acquired players, rest of season, in the new colours. Verdicts are unforgiving and entirely hindsight-based, as is tradition.
+    Nothing is judged until three weeks have passed, and draft picks score nothing here, so a picks-for-player deal is
+    reported ungraded rather than declared a wash.</p>
 
   <div class="hof-scroll">
     <table class="rankings-table hof-table trade-table">
@@ -479,17 +481,18 @@
       <tbody>
         {% for t in trades %}
         <tr>
-          <td class="col-rank">{{ t.season }}<span class="dim"> W{{ t.week }}</span></td>
+          <td class="col-rank">{{ t.season }}<span class="dim"> W{{ t.week }}</span>
+            <br><span class="dim">{{ t.weeks_elapsed }}w of returns</span></td>
           <td><strong>{{ t.winner.manager }}</strong></td>
           <td class="trade-assets">
             {% for p in t.winner.players %}{{ p.name }} <span class="dim">({{ p.pos }})</span>{% if not loop.last %}, {% endif %}{% endfor %}
-            {% if t.winner.picks %}<span class="dim">+ {{ t.winner.picks }} pick{% if t.winner.picks != 1 %}s{% endif %}</span>{% endif %}
+            {% if t.winner.picks %}<span class="dim">+ {{ t.winner.picks }} pick{% if t.winner.picks != 1 %}s{% endif %} (unscored)</span>{% endif %}
           </td>
           <td class="col-pf"><strong>{{ "%.0f"|format(t.winner.total) }}</strong></td>
           <td>{{ t.loser.manager }}</td>
           <td class="trade-assets dim">
             {% for p in t.loser.players %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %}
-            {% if t.loser.picks %}+ {{ t.loser.picks }} pick{% if t.loser.picks != 1 %}s{% endif %}{% endif %}
+            {% if t.loser.picks %}+ {{ t.loser.picks }} pick{% if t.loser.picks != 1 %}s{% endif %} (unscored){% endif %}
           </td>
           <td class="col-pf">{{ "%.0f"|format(t.loser.total) }}</td>
           <td class="col-pf verdict">{{ "%.0f"|format(t.margin) }} <span class="dim">{{ t.level }}</span></td>
@@ -498,8 +501,11 @@
       </tbody>
     </table>
   </div>
-  <p class="hof-footnote">Rest-of-season points only, in half-PPR terms. Two trades are excluded: Sleeper's roster numbering on those
-    records does not match the weekly rosters, so the returns cannot be verified.</p>
+  <p class="hof-footnote">Rest-of-season points only, in half-PPR terms, counted from the week after the deal. A trade needs
+    three weeks of returns before it earns a verdict; until then it reads "too recent to judge" and is left out of career trade
+    margins. Draft picks are listed but not scored — this page has no honest way to value them — so a deal that returned only
+    picks is marked ungraded instead of balanced. Two further trades are excluded: Sleeper's roster numbering on those records
+    does not match the weekly rosters, so the returns cannot be verified.</p>
 </section>
 
 <div class="rule rule-single"></div>

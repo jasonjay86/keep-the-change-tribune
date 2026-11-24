@@ -91,15 +91,26 @@ def load_season(lg: dict, refresh: bool, live_week: int | None = None) -> dict:
     users = _get(f"/league/{lid}/users", f"users_{lid}", refresh) or []
     winners = _get(f"/league/{lid}/winners_bracket", f"wb_{lid}", refresh) or []
 
+    # Recent weeks are volatile: Sleeper keeps applying stat corrections to a
+    # week after it "ends", so a payload cached mid-game freezes a wrong score
+    # forever (a live week 11 once logged 105.58-104.58 for a game that finished
+    # 127.68-111.08). Always refetch the live week and the two behind it.
+    volatile_from = max(1, live_week - 2) if live_week else None
+
+    def _volatile(wk: int) -> bool:
+        return bool(volatile_from and wk >= volatile_from)
+
     matchups = {}
     for wk in range(1, total_weeks + 1):
-        rows = _get(f"/league/{lid}/matchups/{wk}", f"mu_{lid}_{wk}", refresh) or []
+        rows = _get(f"/league/{lid}/matchups/{wk}", f"mu_{lid}_{wk}",
+                    refresh or _volatile(wk)) or []
         if rows:
             matchups[wk] = rows
 
     transactions = {}
     for wk in range(1, total_weeks + 1):
-        rows = _get(f"/league/{lid}/transactions/{wk}", f"tx_{lid}_{wk}", refresh) or []
+        rows = _get(f"/league/{lid}/transactions/{wk}", f"tx_{lid}_{wk}",
+                    refresh or _volatile(wk)) or []
         if rows:
             transactions[wk] = rows
 
@@ -147,6 +158,8 @@ def player_names() -> dict:
 
 
 # ---------------------------------------------------------------- commentary
+
+GRADE_MIN_WEEKS = 3   # below this a trade is a snapshot, not a verdict
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-flash"      # DeepSeek-V4.1-Flash
@@ -426,11 +439,34 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                      "a": ts[ra]["manager"], "a_team": ts[ra]["team"], "a_pts": float(pa),
                      "b": ts[rb]["manager"], "b_team": ts[rb]["team"], "b_pts": float(pb)}
                 games.append(g)
+                # Sleeper's roster settings lag the most recent completed week
+                # (they settle once the NFL week is finalised), so for the live
+                # season the standing is rebuilt from these completed matchups.
+                if live_week and not playoff:
+                    for rid, own, opp in ((ra, pa, pb), (rb, pb, pa)):
+                        acc = ts[rid].setdefault("_live", {"w": 0, "l": 0, "t": 0, "pf": 0.0, "pa": 0.0})
+                        acc["pf"] += own
+                        acc["pa"] += opp
+                        if own > opp:
+                            acc["w"] += 1
+                        elif opp > own:
+                            acc["l"] += 1
+                        else:
+                            acc["t"] += 1
                 if playoff:
                     if pa > pb:
                         ts[ra]["playoff_w"] += 1; ts[rb]["playoff_l"] += 1
                     elif pb > pa:
                         ts[rb]["playoff_w"] += 1; ts[ra]["playoff_l"] += 1
+
+        if live_week:
+            for rid, row in ts.items():
+                acc = row.pop("_live", None)
+                if not acc:
+                    continue
+                row["w"], row["l"], row["t"] = acc["w"], acc["l"], acc["t"]
+                row["pf"], row["pa"] = acc["pf"], acc["pa"]
+                row["weeks"] = acc["w"] + acc["l"] + acc["t"]
 
         # ---- playoff finale from bracket
         champ_rid = runner_rid = None
@@ -825,20 +861,40 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             continue
         sides.sort(key=lambda x: -x["total"])
         margin = round(sides[0]["total"] - sides[1]["total"], 1)
+        weeks_elapsed = max(0, (t["last_week"] or 0) - t["week"])
+
+        # A trade is only graded on what players actually scored AFTER it, so:
+        #  - fewer than three weeks of evidence is not a verdict, it is a snapshot;
+        #  - picks score nothing in this model, so a picks-for-player deal cannot be
+        #    called a wash — it is simply ungraded. Both must be stated, not hidden.
+        players_only = sides[0]["total"] == 0 and sides[1]["total"] == 0
+        has_picks = any(s["picks"] for s in sides)
+        if weeks_elapsed < GRADE_MIN_WEEKS:
+            level = "Too recent to judge"
+        elif players_only and has_picks:
+            level = "Picks only — ungraded"
+        else:
+            level = ("Larceny" if margin >= 150 else "Clear win" if margin >= 60
+                     else "Slight edge" if margin >= 15 else "A wash")
+
         trade_rows.append({
             "season": t["season"], "week": t["week"],
             "winner": sides[0], "loser": sides[1], "margin": margin,
             "tie": abs(margin) < 0.05,
-            "level": ("Larceny" if margin >= 150 else "Clear win" if margin >= 60
-                      else "Slight edge" if margin >= 15 else "A wash"),
+            "weeks_elapsed": weeks_elapsed,
+            "graded": level not in ("Too recent to judge", "Picks only — ungraded"),
+            "level": level,
         })
-    trade_rows.sort(key=lambda x: (-x["margin"], x["season"]))
+    # graded trades first, worst heists at the top; ungraded ones sink to the bottom
+    trade_rows.sort(key=lambda x: (not x["graded"], -x["margin"], x["season"]))
     if skipped_trades:
         print(f"[hof] WARN skipped {len(skipped_trades)} trade(s) with inconsistent roster "
               f"numbering: {skipped_trades}")
 
     trade_net: dict[str, float] = {}
     for tr in trade_rows:
+        if not tr["graded"]:
+            continue
         trade_net[tr["winner"]["manager"]] = trade_net.get(tr["winner"]["manager"], 0.0) + tr["margin"]
         trade_net[tr["loser"]["manager"]] = trade_net.get(tr["loser"]["manager"], 0.0) - tr["margin"]
     for row in mrows:
