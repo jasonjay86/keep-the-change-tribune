@@ -866,7 +866,8 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         row["wins_left"] = bb["left"]
         row["bestball_gain"] = (bb["w"] - row["w"])
 
-    # ---------- trades, resolved on what each side actually received
+    # ---------- trades, resolved on what each side actually received (the week
+    # of the deal included — the assets play for their new team that same week)
     names = player_names()
     trade_rows = []
     skipped_trades: list[dict] = []
@@ -878,9 +879,17 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             players, total = [], 0.0
             for pid in acquired:
                 pts = 0.0
+                # The week of the deal counts: a player moved before kickoff scores
+                # that week for his new team (Jameson Williams, 2026 W10: 7.0 then
+                # 17.3). Sleepers re-assigns him in that week's payload, so the
+                # points come from the acquiring roster's own players_points.
+                for wk in range(t["week"], (t["last_week"] or 0) + 1):
+                    pts += roster_points.get((t["season"], rid, wk), {}).get(pid, 0) or 0
+                # The consistency check still starts the week AFTER the trade: on
+                # the trade week itself a mid-week move can leave the player on the
+                # old roster's snapshot, which is not evidence of a numbering fault.
                 seen_on = set()
                 for wk in range(t["week"] + 1, (t["last_week"] or 0) + 1):
-                    pts += roster_points.get((t["season"], rid, wk), {}).get(pid, 0) or 0
                     where = roster_week.get((t["season"], wk, pid))
                     if where:
                         seen_on.add(where)
@@ -911,7 +920,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 for (p_season, p_wk, p_id), p_rid in roster_week.items():
                     if p_id != pid or p_rid != rid:
                         continue
-                    if (p_season, p_wk) <= (t["season"], t["week"]):
+                    if (p_season, p_wk) < (t["season"], t["week"]):
                         continue
                     pts += (roster_points.get((p_season, rid, p_wk)) or {}).get(pid, 0) or 0
                 nm = names.get(pid, [f"Player {pid}", ""])[0]
@@ -927,7 +936,9 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             continue
         sides.sort(key=lambda x: -x["total"])
         margin = round(sides[0]["total"] - sides[1]["total"], 1)
-        weeks_elapsed = max(0, (t["last_week"] or 0) - t["week"])
+        # Evidence window includes the week of the deal itself, since that week's
+        # points now count for the acquiring team.
+        weeks_elapsed = max(1, (t["last_week"] or 0) - t["week"] + 1)
 
         # A trade is only graded on what players actually scored AFTER it, so:
         #  - fewer than three weeks of evidence is not a verdict, it is a snapshot;
