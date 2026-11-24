@@ -1,16 +1,16 @@
 {
   "league_id": "1312862141639839744",
   "site_title": "The Keep The Change League Tribune",
-  "tagline": "Est. 2026 — A Weekly Chronicle of Wins, Losses, and Loud Opinions",
+  "tagline": "Est. 2026 \u2014 A Weekly Chronicle of Wins, Losses, and Loud Opinions",
   "commissioner_handle": "jasonjay86",
   "accent_color": "#6e1a1a",
   "newsprint_color": "#f4ecd8",
   "ink_color": "#1a1a1a",
   "llm": {
     "provider": "openai-compatible",
-    "model": "MiniMax-M3",
-    "base_url": "https://api.minimax.io/anthropic/v1",
-    "max_tokens": 3000,
+    "model": "deepseek-flash",
+    "base_url": "https://api.deepseek.com/v1",
+    "max_tokens": 3500,
     "personal_bits": 2
   },
   "weights": {

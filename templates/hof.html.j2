@@ -25,7 +25,6 @@
     <a href="#ledger">All-Time Ledger</a>
     <a href="#resume">Résumé Grid</a>
     <a href="#rivalry">Rivalry File</a>
-    <a href="#drafts">Draft Ledger</a>
     <a href="#deals">Ledger of Deals</a>
     <a href="#bench">Bench File</a>
     <a href="#trades">Trade Ledger</a>
@@ -199,6 +198,8 @@
     <span class="h2h-hint">Regular season record, finish and fate</span>
   </div>
 
+  <div id="resume-note" class="resume-note"></div>
+
   <div class="hof-scroll">
     <table class="rankings-table hof-table resume-table">
       <thead>
@@ -219,12 +220,15 @@
   </div>
 
   <script type="application/json" id="resume-data">{{ resume|tojson }}</script>
+  <script type="application/json" id="resume-blurbs">{{ resume_blurbs|tojson }}</script>
   <script>
   (function () {
     var data = JSON.parse(document.getElementById('resume-data').textContent);
+    var blurbs = JSON.parse(document.getElementById('resume-blurbs').textContent || '{}');
     var sel = document.getElementById('resume-select');
     var body = document.getElementById('resume-body');
     var foot = document.getElementById('resume-foot');
+    var note = document.getElementById('resume-note');
 
     function esc(t) {
       return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
@@ -234,6 +238,8 @@
 
     function render(name) {
       var rows = data[name] || [];
+      note.textContent = blurbs[name] || '';
+      note.style.display = blurbs[name] ? 'block' : 'none';
       if (!rows.length) {
         body.innerHTML = '<tr><td colspan="6" class="dim">No seasons on record.</td></tr>';
         foot.innerHTML = '';
@@ -374,66 +380,9 @@
 
 <div class="rule rule-single"></div>
 
-<!-- ================================================== DRAFT LEDGER -->
-<section id="drafts">
-  <div class="kicker">── Chapter VI · The Draft Ledger ──</div>
-  <p class="section-blurb">Every draft graded on what each pick actually returned against what that round historically paid. Half-PPR points, full season.</p>
-
-  {% if draft_highlights.best_pick %}
-  <div class="hof-rivalry-cards">
-    <div class="rivalry-card">
-      <div class="record-label">Greatest Steal</div>
-      <div class="rivalry-pair">{{ draft_highlights.best_pick.player }}</div>
-      <div class="rivalry-score">{{ "%.0f"|format(draft_highlights.best_pick.points) }} pts</div>
-      <div class="rivalry-meta">{{ draft_highlights.best_pick.manager }} · {{ draft_highlights.best_pick.season }} · R{{ draft_highlights.best_pick.round }} pick {{ draft_highlights.best_pick.pick_no }}</div>
-    </div>
-    {% if draft_highlights.worst_pick %}
-    <div class="rivalry-card">
-      <div class="record-label">Sorriest Bust</div>
-      <div class="rivalry-pair">{{ draft_highlights.worst_pick.player }}</div>
-      <div class="rivalry-score">{{ "%.0f"|format(draft_highlights.worst_pick.points) }} pts</div>
-      <div class="rivalry-meta">{{ draft_highlights.worst_pick.manager }} · {{ draft_highlights.worst_pick.season }} · R{{ draft_highlights.worst_pick.round }} pick {{ draft_highlights.worst_pick.pick_no }}</div>
-    </div>
-    {% endif %}
-    {% if draft_highlights.top_scorer_pick %}
-    <div class="rivalry-card">
-      <div class="record-label">Best Player Ever Drafted</div>
-      <div class="rivalry-pair">{{ draft_highlights.top_scorer_pick.player }}</div>
-      <div class="rivalry-score">{{ "%.0f"|format(draft_highlights.top_scorer_pick.points) }} pts</div>
-      <div class="rivalry-meta">{{ draft_highlights.top_scorer_pick.manager }} · {{ draft_highlights.top_scorer_pick.season }} · pick {{ draft_highlights.top_scorer_pick.pick_no }}</div>
-    </div>
-    {% endif %}
-  </div>
-  {% endif %}
-
-  <div class="hof-draft-grid">
-    {% for d in drafts_by_season %}
-    <div class="draft-block">
-      <h3 class="hof-subhead">{{ d.season }} Draft</h3>
-      <table class="rankings-table hof-table hof-table--compact">
-        <thead><tr><th class="col-rank">#</th><th>Manager</th><th class="col-pf">Grade</th><th class="col-pf">Surplus</th><th>Best Pick</th></tr></thead>
-        <tbody>
-          {% for t in d.teams %}
-          <tr>
-            <td class="col-rank">{{ t.rank }}</td>
-            <td>{{ t.manager }}</td>
-            <td class="col-pf grade">{{ t.grade }}</td>
-            <td class="col-pf">{{ "%+.0f"|format(t.surplus) }}</td>
-            <td class="dim">{{ t.best }}{% if t.best_pts %} ({{ "%.0f"|format(t.best_pts) }}){% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endfor %}
-  </div>
-</section>
-
-<div class="rule rule-single"></div>
-
 <!-- ================================================== LEDGER OF DEALS -->
 <section id="deals">
-  <div class="kicker">── Chapter VII · The Ledger of Deals ──</div>
+  <div class="kicker">── Chapter VI · The Ledger of Deals ──</div>
   <p class="section-blurb">{{ totals.trades }} trades and {{ totals.moves }} total roster moves on record. Some were strategy. Most were panic.</p>
   <div class="hof-scroll">
     <table class="rankings-table hof-table">
@@ -469,7 +418,7 @@
 
 <!-- ================================================== BENCH FILE -->
 <section id="bench">
-  <div class="kicker">── Chapter VIII · The Bench File ──</div>
+  <div class="kicker">── Chapter VII · The Bench File ──</div>
   <p class="section-blurb">Points left sitting on the bench. Every lineup has one regret; this is the ledger of them. Best-ball record replays
     each week as though the optimal lineup had been started — a measure of talent wasted on hesitation.</p>
   <div class="hof-scroll">
@@ -509,7 +458,7 @@
 
 <!-- ================================================== TRADE LEDGER -->
 <section id="trades">
-  <div class="kicker">── Chapter IX · The Trade Ledger ──</div>
+  <div class="kicker">── Chapter VIII · The Trade Ledger ──</div>
   <p class="section-blurb">{{ trades|length }} trades graded on what each side actually received afterwards — points scored by the
     acquired players, rest of season, in the new colours. Verdicts are unforgiving and entirely hindsight-based, as is tradition.</p>
 
