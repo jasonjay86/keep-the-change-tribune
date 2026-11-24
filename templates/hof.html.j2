@@ -461,8 +461,9 @@
   <div class="kicker">── Chapter VIII · The Trade Ledger ──</div>
   <p class="section-blurb">{{ trades|length }} trades graded on what each side actually received afterwards — points scored by the
     acquired players, rest of season, in the new colours. Verdicts are unforgiving and entirely hindsight-based, as is tradition.
-    Nothing is judged until three weeks have passed, and draft picks score nothing here, so a picks-for-player deal is
-    reported ungraded rather than declared a wash.</p>
+    Nothing is judged until three weeks have passed. A draft pick is worth whatever the player taken with it scored in the
+    same colours, and a pick whose draft has not happened yet is marked TBD — a trade carrying one stays ungraded until
+    that draft is run.</p>
 
   <div class="hof-scroll">
     <table class="rankings-table hof-table trade-table">
@@ -486,13 +487,13 @@
           <td><strong>{{ t.winner.manager }}</strong></td>
           <td class="trade-assets">
             {% for p in t.winner.players %}{{ p.name }} <span class="dim">({{ p.pos }})</span>{% if not loop.last %}, {% endif %}{% endfor %}
-            {% if t.winner.picks %}<span class="dim">+ {{ t.winner.picks }} pick{% if t.winner.picks != 1 %}s{% endif %} (unscored)</span>{% endif %}
+            {% if t.winner.picks %}<span class="dim">+ {% for pk in t.winner.picks %}{{ pk.label }} ({% if pk.tbd %}TBD{% else %}{{ pk.player }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
           </td>
           <td class="col-pf"><strong>{{ "%.0f"|format(t.winner.total) }}</strong></td>
           <td>{{ t.loser.manager }}</td>
           <td class="trade-assets dim">
             {% for p in t.loser.players %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %}
-            {% if t.loser.picks %}+ {{ t.loser.picks }} pick{% if t.loser.picks != 1 %}s{% endif %} (unscored){% endif %}
+            {% if t.loser.picks %}+ {% for pk in t.loser.picks %}{{ pk.label }} ({% if pk.tbd %}TBD{% else %}{{ pk.player }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
           </td>
           <td class="col-pf">{{ "%.0f"|format(t.loser.total) }}</td>
           <td class="col-pf verdict">{{ "%.0f"|format(t.margin) }} <span class="dim">{{ t.level }}</span></td>
@@ -501,11 +502,12 @@
       </tbody>
     </table>
   </div>
-  <p class="hof-footnote">Rest-of-season points only, in half-PPR terms, counted from the week after the deal. A trade needs
-    three weeks of returns before it earns a verdict; until then it reads "too recent to judge" and is left out of career trade
-    margins. Draft picks are listed but not scored — this page has no honest way to value them — so a deal that returned only
-    picks is marked ungraded instead of balanced. Two further trades are excluded: Sleeper's roster numbering on those records
-    does not match the weekly rosters, so the returns cannot be verified.</p>
+  <p class="hof-footnote">Rest-of-season points only, in half-PPR terms, counted from the week after the deal. Picks are scored
+    as the player eventually taken with them, in the same window, and only for the weeks that player was on the acquiring
+    roster — which is why a pick's points can land in a later season than the trade itself. A pick not yet used is TBD
+    and freezes the whole verdict. A trade also needs three weeks of returns before it earns
+    one — until then it reads "too recent to judge" and is left out of career trade margins. Two further trades are excluded:
+    Sleeper's roster numbering on those records does not match the weekly rosters, so the returns cannot be verified.</p>
 </section>
 
 <div class="rule rule-single"></div>

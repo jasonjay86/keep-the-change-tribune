@@ -114,6 +114,33 @@ def load_season(lg: dict, refresh: bool, live_week: int | None = None) -> dict:
         if rows:
             transactions[wk] = rows
 
+    # Drafts exist only to value traded picks: a pick is worth whatever the
+    # player taken with it did. Completed drafts never change, so they cache
+    # forever; a season whose draft has not run yet simply returns nothing.
+    #
+    # Sleeper records a traded pick under the roster that USED it, not the slot
+    # it came from, so the only reliable join is the slot: draft_order maps
+    # user -> slot at creation, and within a linear draft the Nth pick of a
+    # round is slot N.
+    draft_slots: dict[tuple, str] = {}   # (season, round, slot) -> player_id
+    draft_order: dict[str, int] = {}     # user_id -> slot
+    for d in _get(f"/league/{lid}/drafts", f"drafts_{lid}", refresh) or []:
+        did = d.get("draft_id")
+        if not did or d.get("status") not in ("complete", "drafting", None):
+            continue
+        meta = _get(f"/draft/{did}", f"draft_{did}", refresh) or {}
+        for uid, slot in (meta.get("draft_order") or d.get("draft_order") or {}).items():
+            draft_order[str(uid)] = int(slot)
+        by_round: dict[int, list] = {}
+        for pk in _get(f"/draft/{did}/picks", f"picks_{did}", refresh) or []:
+            if pk.get("round") is not None:
+                by_round.setdefault(int(pk["round"]), []).append(pk)
+        for rnd, plist in by_round.items():
+            plist.sort(key=lambda x: x.get("pick_no") or 0)
+            for i, pk in enumerate(plist, 1):
+                if pk.get("player_id"):
+                    draft_slots[(str(meta.get("season") or season), rnd, i)] = pk["player_id"]
+
     return {
         "league_id": lid,
         "season": season,
@@ -126,6 +153,8 @@ def load_season(lg: dict, refresh: bool, live_week: int | None = None) -> dict:
         "winners": winners,
         "matchups": matchups,
         "transactions": transactions,
+        "draft_slots": draft_slots,
+        "draft_order": draft_order,
         "scoring": lg.get("scoring_settings") or {},
         "live_week": live_week,
         "total_rosters": lg.get("total_rosters") or len(rosters),
@@ -350,10 +379,20 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
     roster_points: dict[tuple, dict] = {}  # (season, roster_id, week) -> {player_id: pts}
     trades_raw: list[dict] = []      # completed trades, resolved later
     roster_week: dict[tuple, int] = {}   # (season, week, player_id) -> roster_id
+    pick_players: dict[tuple, str] = {}  # (season, round, slot) -> player_id
+    slot_of_user: dict[tuple, int] = {}  # (season, user_id) -> draft slot
+    user_of_roster: dict[tuple, str] = {}  # (season, roster_id) -> user_id
 
     for s in seasons_raw:
         season = s["season"]
         lid = s["league_id"]
+        for (d_season, rnd, slot), pid in (s.get("draft_slots") or {}).items():
+            pick_players[(d_season, rnd, slot)] = pid
+        for uid, slot in (s.get("draft_order") or {}).items():
+            slot_of_user[(season, uid)] = slot
+        for r in s["rosters"]:
+            if r.get("owner_id"):
+                user_of_roster[(season, r["roster_id"])] = str(r["owner_id"])
         reg_weeks = s["regular_weeks"]
         live_week = s.get("live_week")
 
@@ -850,12 +889,39 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 nm, pos = names.get(pid, [f"Player {pid}", ""])
                 players.append({"name": nm, "pos": pos, "pts": round(pts, 1)})
                 total += pts
-            owner = t["owners"].get(rid)
-            picks = [dp for dp in t["draft_picks"]
-                     if dp.get("owner_id") in (rid, owner)]
+            # Picks are valued as the player eventually taken with them: same
+            # window as the players (everything after the trade), counted only
+            # for weeks the asset was actually on this manager's roster. A pick
+            # whose draft has not happened yet is TBD, and a trade carrying a
+            # TBD pick cannot be graded at all.
+            picks = []
+            for dp in t["draft_picks"]:
+                if dp.get("owner_id") != rid:
+                    continue
+                pk_season = str(dp.get("season"))
+                label = f"{pk_season} R{dp.get('round')}"
+                # original roster -> that season's user -> draft slot -> the pick
+                orig_user = user_of_roster.get((pk_season, dp.get("roster_id")))
+                slot = slot_of_user.get((pk_season, orig_user)) if orig_user else None
+                pid = pick_players.get((pk_season, dp.get("round"), slot)) if slot else None
+                if not pid:
+                    picks.append({"label": label, "player": None, "pts": 0.0, "tbd": True})
+                    continue
+                pts = 0.0
+                for (p_season, p_wk, p_id), p_rid in roster_week.items():
+                    if p_id != pid or p_rid != rid:
+                        continue
+                    if (p_season, p_wk) <= (t["season"], t["week"]):
+                        continue
+                    pts += (roster_points.get((p_season, rid, p_wk)) or {}).get(pid, 0) or 0
+                nm = names.get(pid, [f"Player {pid}", ""])[0]
+                picks.append({"label": label, "player": nm, "pts": round(pts, 1), "tbd": False})
+                total += pts
+
             players.sort(key=lambda x: -x["pts"])
+            picks.sort(key=lambda x: (-x["pts"], x["label"]))
             sides.append({"manager": mgr, "players": players, "total": round(total, 1),
-                          "picks": len(picks)})
+                          "picks": picks, "picks_tbd": sum(1 for x in picks if x["tbd"])})
         if len(sides) != 2 or mismatch:
             skipped_trades.append({"season": t["season"], "week": t["week"]})
             continue
@@ -867,12 +933,11 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         #  - fewer than three weeks of evidence is not a verdict, it is a snapshot;
         #  - picks score nothing in this model, so a picks-for-player deal cannot be
         #    called a wash — it is simply ungraded. Both must be stated, not hidden.
-        players_only = sides[0]["total"] == 0 and sides[1]["total"] == 0
-        has_picks = any(s["picks"] for s in sides)
-        if weeks_elapsed < GRADE_MIN_WEEKS:
+        tbd = any(x["tbd"] for side in sides for x in side["picks"])
+        if tbd:
+            level = "Ungraded — pick not yet used"
+        elif weeks_elapsed < GRADE_MIN_WEEKS:
             level = "Too recent to judge"
-        elif players_only and has_picks:
-            level = "Picks only — ungraded"
         else:
             level = ("Larceny" if margin >= 150 else "Clear win" if margin >= 60
                      else "Slight edge" if margin >= 15 else "A wash")
@@ -882,7 +947,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             "winner": sides[0], "loser": sides[1], "margin": margin,
             "tie": abs(margin) < 0.05,
             "weeks_elapsed": weeks_elapsed,
-            "graded": level not in ("Too recent to judge", "Picks only — ungraded"),
+            "graded": not level.startswith("Too recent") and not level.startswith("Ungraded"),
             "level": level,
         })
     # graded trades first, worst heists at the top; ungraded ones sink to the bottom
