@@ -52,6 +52,17 @@ VOICE — John Madden:
 - No purple prose. No headlines-puns in body copy. No "lo! the ledger..."
 - Speak it out loud. Imagine the commissioner is half-watching.
 
+HISTORY — a `hall_of_fame_history` block may be present with career records,
+all-time leaders and league records:
+- Use it for weight, not decoration. At most TWO historical references in the
+  whole column, and only where they change what a result means (a manager
+  chasing a first title, a career mark under threat, a streak nobody has run
+  before).
+- These are the only historical facts you may state. Never invent a season, a
+  title, a record or a rivalry that is not in the block.
+- Yesterday's news beats history: if the block conflicts with this week's
+  results, this week is right.
+
 LENGTH — TOTAL ~300-340 WORDS, HARD CEILING 380:
 - lede.body:        ~90 words (one paragraph, choppy)
 - motw_blurb:       ~70 words
@@ -296,8 +307,77 @@ def enrich_members(rows: list[dict], context: dict) -> list[dict]:
     return rows
 
 
+HOF_PATH = Path(__file__).resolve().parent.parent / "hof.json"
+
+
+def load_hof_context(handles: list[str], max_records: int = 5) -> dict | None:
+    """
+    Condense hof.json into the few career facts a weekly column can cite.
+
+    Limits: a manager's career line, their current-season row, a handful of
+    all-time records, the reigning champion and the all-time win leaders. The
+    HOF is rebuilt before this script runs, so the numbers are current; if the
+    file is missing or a build failed, the column simply runs without history.
+    """
+    try:
+        hof = json.loads(HOF_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"[llm_commentary] no HOF context ({e})", file=sys.stderr)
+        return None
+
+    seasons = [s.get("season") for s in hof.get("seasons", []) if s.get("season")]
+    latest = max(seasons) if seasons else None
+    by_name = {m.get("name"): m for m in hof.get("managers", [])}
+
+    career = {}
+    for h in handles:
+        m = by_name.get(h)
+        if not m:
+            continue
+        career[h] = {
+            "seasons_played": m.get("seasons"),
+            "all_time_record": m.get("record"),
+            "win_pct": round(m.get("pct", 0), 3),
+            "titles": m.get("titles", []),
+            "runner_ups": m.get("runner_ups", []),
+            "playoff_apps": m.get("playoff_apps"),
+            "best_finish": m.get("best_finish"),
+            "worst_finish": m.get("worst_finish"),
+            "career_ppg": m.get("ppg"),
+            "best_score": m.get("best_score"),
+            "longest_win_streak": m.get("streak_w"),
+            "luck": round(m.get("luck", 0), 2),
+            "trades": m.get("trades"),
+        }
+
+    current = {}
+    for h in handles:
+        for row in hof.get("resume", {}).get(h, []):
+            if row.get("season") == latest:
+                current[h] = {"season": latest, "record": row.get("record"),
+                              "points_for": row.get("pf"), "result": row.get("result")}
+
+    leaders = sorted((m for m in hof.get("managers", []) if m.get("name")),
+                     key=lambda m: (-m.get("w", 0), -m.get("pct", 0)))[:3]
+
+    return {
+        "league_seasons_in_hof": len(seasons),
+        "careers": career,
+        "current_season": current,
+        "reigning_champion": hof.get("reigning_champion"),
+        "all_time_win_leaders": [
+            {"manager": m["name"], "wins": m.get("w"), "record": m.get("record"),
+             "titles": len(m.get("titles", []))} for m in leaders],
+        "all_time_records": [
+            {"record": r.get("label"), "value": r.get("value"),
+             "holder": r.get("holder"), "when": r.get("detail")}
+            for r in hof.get("records", [])[:max_records]],
+    }
+
+
 def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
-                      personal_bits: list[dict] | None = None) -> str:
+                      personal_bits: list[dict] | None = None,
+                      hof: dict | None = None) -> str:
     season_type = rankings.get("season_type", "regular")
     wk = rankings.get("week")
     league_name = rankings.get("league", "the league")
@@ -354,6 +434,12 @@ def build_user_prompt(rankings: dict, site_cfg: dict, context: dict,
             {"about": bit.get("handles", []), "text": bit.get("text", "")}
             for bit in personal_bits
         ]
+
+    # Hall of Fame history, rebuilt from Sleeper before this script runs. The
+    # model may lean on it for weight and continuity but must not invent beyond
+    # it, and it must never outrank the week's actual news.
+    if hof:
+        payload["hall_of_fame_history"] = hof
 
     return week_header + json.dumps(payload, indent=2)
 
@@ -835,7 +921,22 @@ def main():
     if chosen_bits:
         handles = [h for b in chosen_bits for h in b.get("handles", [])]
         print(f"[llm_commentary] picked {len(chosen_bits)} personal bit(s) — about: {handles}", file=sys.stderr)
-    user_prompt = build_user_prompt(rankings, cfg, context, personal_bits=chosen_bits)
+    # Hall of Fame history — the cron rebuilds hof.json before this step, so the
+    # career lines arrive current. Every manager in this week's table gets a
+    # career entry; the model decides whether any of it earns a sentence.
+    hof_handles = []
+    for r in rankings.get("rankings", []):
+        h = (r.get("owner") or {}).get("display_name")
+        if h and h not in hof_handles:
+            hof_handles.append(h)
+    hof_ctx = load_hof_context(hof_handles)
+    if hof_ctx:
+        print(f"[llm_commentary] HOF context: {len(hof_ctx['careers'])} career(s), "
+              f"{len(hof_ctx['all_time_records'])} record(s), "
+              f"reigning champion {hof_ctx.get('reigning_champion')}", file=sys.stderr)
+
+    user_prompt = build_user_prompt(rankings, cfg, context, personal_bits=chosen_bits,
+                                    hof=hof_ctx)
 
     llm_key = _api_key(llm_cfg.get("base_url", ""), llm_cfg.get("model", ""))
     if args.dry_run or not llm_key:
