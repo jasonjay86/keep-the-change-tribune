@@ -60,6 +60,11 @@ def _get(path: str, cache_key: str | None = None, refresh: bool = False):
     return None
 
 
+def nfl_state() -> dict:
+    """Current NFL state — used to detect the live (partially scored) week."""
+    return _get("/state/nfl") or {}
+
+
 def league_chain(refresh: bool) -> list[dict]:
     """Walk previous_league_id back to the league's first season."""
     chain, cur, seen = [], CURRENT_LEAGUE, set()
@@ -75,7 +80,7 @@ def league_chain(refresh: bool) -> list[dict]:
 
 # ---------------------------------------------------------------- season load
 
-def load_season(lg: dict, refresh: bool) -> dict:
+def load_season(lg: dict, refresh: bool, live_week: int | None = None) -> dict:
     lid = lg["league_id"]
     season = str(lg.get("season"))
     settings = lg.get("settings") or {}
@@ -122,6 +127,7 @@ def load_season(lg: dict, refresh: bool) -> dict:
         "matchups": matchups,
         "transactions": transactions,
         "scoring": lg.get("scoring_settings") or {},
+        "live_week": live_week,
         "total_rosters": lg.get("total_rosters") or len(rosters),
     }
 
@@ -198,6 +204,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         season = s["season"]
         lid = s["league_id"]
         reg_weeks = s["regular_weeks"]
+        live_week = s.get("live_week")
 
         # ---- identity maps
         user_by_id = {u.get("user_id"): u for u in s["users"]}
@@ -220,14 +227,24 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         for r in s["rosters"]:
             rid = r["roster_id"]
             st = r.get("settings") or {}
+            # Official standings come from the roster settings — they already
+            # absorb stat corrections and, crucially, they do NOT include the
+            # live (in-progress) week.
+            w = st.get("wins") or 0
+            l = st.get("losses") or 0
+            t = st.get("ties") or 0
             ts[rid] = {
                 "season": season, "roster_id": rid, "manager": mkey(rid),
-                "team": team_names.get(rid) or "", "w": 0, "l": 0, "t": 0,
-                "pf": 0.0, "pa": 0.0, "weeks": 0, "playoff_w": 0, "playoff_l": 0,
+                "team": team_names.get(rid) or "", "w": w, "l": l, "t": t,
+                "pf": (st.get("fpts") or 0) + (st.get("fpts_decimal") or 0) / 100,
+                "pa": (st.get("fpts_against") or 0) + (st.get("fpts_against_decimal") or 0) / 100,
+                "weeks": w + l + t, "playoff_w": 0, "playoff_l": 0,
             }
 
         # ---- walk weeks
         for wk in sorted(s["matchups"]):
+            if live_week and wk >= live_week:
+                continue  # live week: scores are still moving, standings exclude it
             rows = s["matchups"][wk]
             by_match: dict[int, list] = {}
             for row in rows:
@@ -239,8 +256,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                     weekly_scores.append({"season": season, "week": wk, "manager": ts[rid]["manager"],
                                           "team": ts[rid]["team"], "points": float(pts),
                                           "playoff": wk >= s["playoff_start"]})
-                    ts[rid]["pf"] += float(pts)
-                    ts[rid]["weeks"] += 1
+                    ts[rid]["weeks"] = ts[rid]["weeks"]  # official totals come from settings
             for mid, pair in by_match.items():
                 if len(pair) != 2:
                     continue
@@ -254,8 +270,6 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 if ra not in ts or rb not in ts:
                     continue
                 playoff = wk >= s["playoff_start"]
-                ts[ra]["pa"] += float(pb)
-                ts[rb]["pa"] += float(pa)
                 g = {"season": season, "week": wk, "playoff": playoff,
                      "a": ts[ra]["manager"], "a_team": ts[ra]["team"], "a_pts": float(pa),
                      "b": ts[rb]["manager"], "b_team": ts[rb]["team"], "b_pts": float(pb)}
@@ -265,14 +279,6 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                         ts[ra]["playoff_w"] += 1; ts[rb]["playoff_l"] += 1
                     elif pb > pa:
                         ts[rb]["playoff_w"] += 1; ts[ra]["playoff_l"] += 1
-                else:
-                    for me, mine, theirs in ((ra, pa, pb), (rb, pb, pa)):
-                        if mine > theirs:
-                            ts[me]["w"] += 1
-                        elif mine < theirs:
-                            ts[me]["l"] += 1
-                        else:
-                            ts[me]["t"] += 1
 
         # ---- playoff finale from bracket
         champ_rid = runner_rid = None
@@ -400,7 +406,9 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             "teams": len(ts),
             "status": s["status"],
             "final_score": champ_final(champ["manager"], runner["manager"]) if (champ and runner) else "",
-            "weeks_played": max([w for w in s["matchups"] if any((r.get("points") or 0) > 0 for r in s["matchups"][w])] or [0]),
+            "weeks_played": max([w for w in s["matchups"]
+                                 if (not s.get("live_week") or w < s["live_week"])
+                                 and any((r.get("points") or 0) > 0 for r in s["matchups"][w])] or [0]),
         })
 
         # remember seeds for upset detection and bracket membership for playoff apps
@@ -747,10 +755,14 @@ def main():
 
     CACHE.mkdir(parents=True, exist_ok=True)
     chain = league_chain(args.refresh)
-    print(f"[hof] seasons found: {[l['season'] for l in chain]}")
+    state = nfl_state()
+    cur_season = str(state.get("season") or "")
+    cur_week = int(state.get("week") or 0)
+    print(f"[hof] seasons found: {[l['season'] for l in chain]} · NFL state {cur_season} W{cur_week}")
     raw = []
     for lg in chain:
-        s = load_season(lg, args.refresh)
+        live = cur_week if str(lg.get("season")) == cur_season and cur_week else None
+        s = load_season(lg, args.refresh, live_week=live)
         played = sum(1 for r in s["matchups"].values() for x in r if (x.get("points") or 0) > 0)
         print(f"[hof] {s['season']}: {len(s['rosters'])} teams · {len(s['matchups'])} weeks · {played} scored rows · {len(s['picks'])} picks")
         raw.append(s)
