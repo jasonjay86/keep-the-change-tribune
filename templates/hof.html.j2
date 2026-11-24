@@ -26,6 +26,9 @@
     <a href="#rivalry">Rivalry File</a>
     <a href="#drafts">Draft Ledger</a>
     <a href="#deals">Ledger of Deals</a>
+    <a href="#bench">Bench File</a>
+    <a href="#trades">Trade Ledger</a>
+    <a href="#awards">Awards</a>
   </nav>
   <div class="rule rule-double"></div>
 </header>
@@ -372,6 +375,113 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== BENCH FILE -->
+<section id="bench">
+  <div class="kicker">── Chapter VII · The Bench File ──</div>
+  <p class="section-blurb">Points left sitting on the bench. Every lineup has one regret; this is the ledger of them. Best-ball record replays
+    each week as though the optimal lineup had been started — a measure of talent wasted on hesitation.</p>
+  <div class="hof-scroll">
+    <table class="rankings-table hof-table">
+      <thead>
+        <tr>
+          <th class="col-rank">#</th>
+          <th>Manager</th>
+          <th class="col-pf">Bench Pts</th>
+          <th class="col-pf">Per Week</th>
+          <th>Worst Week</th>
+          <th class="col-pf">Clean Sheets</th>
+          <th class="col-record">Best-Ball</th>
+          <th class="col-pf">Gain</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in managers|sort(attribute='bench_total', reverse=true) %}
+        <tr>
+          <td class="col-rank">{{ loop.index }}</td>
+          <td><strong>{{ m.name }}</strong></td>
+          <td class="col-pf">{{ "%.0f"|format(m.bench_total) }}</td>
+          <td class="col-pf">{{ "%.1f"|format(m.bench_avg) }}</td>
+          <td class="dim">{{ m.bench_worst }}</td>
+          <td class="col-pf">{{ m.bench_clean }}</td>
+          <td class="col-record">{{ m.bestball_record }}</td>
+          <td class="col-pf">{% if m.bestball_gain %}<strong>+{{ m.bestball_gain }}</strong>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="hof-footnote">Clean sheets = weeks with nothing of value left on the bench. Gain = wins a perfect lineup would have added
+    (best-ball is slot-blind: the top scorers on the roster, regardless of position).</p>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== TRADE LEDGER -->
+<section id="trades">
+  <div class="kicker">── Chapter VIII · The Trade Ledger ──</div>
+  <p class="section-blurb">{{ trades|length }} trades graded on what each side actually received afterwards — points scored by the
+    acquired players, rest of season, in the new colours. Verdicts are unforgiving and entirely hindsight-based, as is tradition.</p>
+
+  <div class="hof-scroll">
+    <table class="rankings-table hof-table trade-table">
+      <thead>
+        <tr>
+          <th class="col-rank">When</th>
+          <th>Winner</th>
+          <th>Received</th>
+          <th class="col-pf">Pts</th>
+          <th>Loser</th>
+          <th>Received</th>
+          <th class="col-pf">Pts</th>
+          <th class="col-pf">Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in trades %}
+        <tr>
+          <td class="col-rank">{{ t.season }}<span class="dim"> W{{ t.week }}</span></td>
+          <td><strong>{{ t.winner.manager }}</strong></td>
+          <td class="trade-assets">
+            {% for p in t.winner.players %}{{ p.name }} <span class="dim">({{ p.pos }})</span>{% if not loop.last %}, {% endif %}{% endfor %}
+            {% if t.winner.picks %}<span class="dim">+ {{ t.winner.picks }} pick{% if t.winner.picks != 1 %}s{% endif %}</span>{% endif %}
+          </td>
+          <td class="col-pf"><strong>{{ "%.0f"|format(t.winner.total) }}</strong></td>
+          <td>{{ t.loser.manager }}</td>
+          <td class="trade-assets dim">
+            {% for p in t.loser.players %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% if t.loser.picks %}+ {{ t.loser.picks }} pick{% if t.loser.picks != 1 %}s{% endif %}{% endif %}
+          </td>
+          <td class="col-pf">{{ "%.0f"|format(t.loser.total) }}</td>
+          <td class="col-pf verdict">{{ "%.0f"|format(t.margin) }} <span class="dim">{{ t.level }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="hof-footnote">Rest-of-season points only, in half-PPR terms. Two trades are excluded: Sleeper's roster numbering on those
+    records does not match the weekly rosters, so the returns cannot be verified.</p>
+</section>
+
+<div class="rule rule-single"></div>
+
+<!-- ================================================== AWARDS -->
+<section id="awards">
+  <div class="kicker accent">── Chapter IX · Awards Night ──</div>
+  <p class="section-blurb">The inaugural class, elected by arithmetic rather than a committee. Nobody campaigned; nobody won a vote.</p>
+  <div class="hof-awards">
+    {% for a in awards %}
+    <div class="award-card">
+      <div class="award-title">{{ a.title }}</div>
+      <div class="award-winner">{{ a.winner }}</div>
+      <div class="award-value">{{ a.value }}</div>
+      <div class="award-detail">{{ a.detail }}</div>
+    </div>
+    {% endfor %}
   </div>
 </section>
 

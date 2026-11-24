@@ -161,6 +161,31 @@ def player_week_points(season: str, weeks: list[int], player_ids: set[str], refr
     return totals
 
 
+def player_names() -> dict:
+    """{player_id: [name, position]} from a slim cache of the NFL players DB."""
+    slim = CACHE / "player_names.json"
+    if slim.exists():
+        try:
+            return json.loads(slim.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    src = Path("cache/players_nfl.json")
+    if src.exists():
+        db = json.loads(src.read_text(encoding="utf-8"))
+    else:
+        db = _get("/players/nfl") or {}
+    out = {}
+    for pid, pl in db.items():
+        if not isinstance(pl, dict):
+            continue
+        name = f"{pl.get('first_name') or ''} {pl.get('last_name') or ''}".strip()
+        if name:
+            out[pid] = [name, pl.get("position") or ""]
+    CACHE.mkdir(parents=True, exist_ok=True)
+    slim.write_text(json.dumps(out), encoding="utf-8")
+    return out
+
+
 # ---------------------------------------------------------------- compute
 
 # ---------------------------------------------------------------- adjudications
@@ -220,6 +245,10 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
     picks_out: list[dict] = []
     seed_of: dict[tuple, int] = {}
     bracket_by_season: dict[str, set] = {}
+    bench_rows: list[dict] = []      # one per team-week: bench points + best-ball score
+    roster_points: dict[tuple, dict] = {}  # (season, roster_id, week) -> {player_id: pts}
+    trades_raw: list[dict] = []      # completed trades, resolved later
+    roster_week: dict[tuple, int] = {}   # (season, week, player_id) -> roster_id
 
     for s in seasons_raw:
         season = s["season"]
@@ -273,11 +302,25 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 by_match.setdefault(mid, []).append(row)
                 pts = row.get("points")
                 rid = row.get("roster_id")
+                pp = row.get("players_points") or {}
+                if rid in ts:
+                    roster_points[(season, rid, wk)] = pp
+                for pid in (row.get("players") or []):
+                    roster_week[(season, wk, pid)] = rid
                 if isinstance(pts, (int, float)) and pts > 0 and rid in ts:
                     weekly_scores.append({"season": season, "week": wk, "manager": ts[rid]["manager"],
                                           "team": ts[rid]["team"], "points": float(pts),
                                           "playoff": wk >= s["playoff_start"]})
                     ts[rid]["weeks"] = ts[rid]["weeks"]  # official totals come from settings
+                    starters = [x for x in (row.get("starters") or []) if x and x != "0"]
+                    vals = [v for v in pp.values() if isinstance(v, (int, float))]
+                    bench = round(sum(v for k, v in pp.items()
+                                      if k not in starters and isinstance(v, (int, float)) and v > 0), 2)
+                    best = round(sum(sorted(vals, reverse=True)[:len(starters) or 0]), 2)
+                    bench_rows.append({"season": season, "week": wk, "manager": ts[rid]["manager"],
+                                       "team": ts[rid]["team"], "bench": bench,
+                                       "actual": round(float(pts), 2), "best": best,
+                                       "playoff": wk >= s["playoff_start"]})
             for mid, pair in by_match.items():
                 if len(pair) != 2:
                     continue
@@ -358,7 +401,18 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                     if rid not in ts:
                         continue
                     tx_rows.append({"season": season, "week": wk, "type": typ,
-                                    "manager": ts[rid]["manager"]})
+                                    "manager": ts[rid]["manager"],
+                                    "txid": t.get("transaction_id")})
+                if typ == "trade" and t.get("status") == "complete" and len(rids) == 2:
+                    trades_raw.append({
+                        "season": season, "week": int(t.get("leg") or wk),
+                        "sides": [(rid, ts[rid]["manager"]) for rid in rids],
+                        "owners": {rid: roster_owner.get(rid) for rid in rids},
+                        "adds": {str(k): int(v) for k, v in (t.get("adds") or {}).items()},
+                        "draft_picks": t.get("draft_picks") or [],
+                        "last_week": max([w for w in s["matchups"]
+                                          if (not s.get("live_week") or w < s["live_week"])] or [0]),
+                    })
 
         # ---- drafts (grades computed after player points are known)
         draft_teams.extend([])  # placeholder, filled below
@@ -599,6 +653,104 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         })
     mrows.sort(key=lambda x: (-len(x["titles"]), -x["w"], -x["pct"]))
 
+    # ---------- bench points (lineup regret) and best-ball
+    bench: dict[str, dict] = {}
+    for b in bench_rows:
+        if b["playoff"]:
+            continue
+        d = bench.setdefault(b["manager"], {"total": 0.0, "weeks": 0, "clean": 0, "worst": None})
+        d["total"] += b["bench"]
+        d["weeks"] += 1
+        if b["bench"] <= 0.01:
+            d["clean"] += 1
+        if d["worst"] is None or b["bench"] > d["worst"]["bench"]:
+            d["worst"] = b
+
+    # best-ball record: replay every regular-season game using each side's
+    # optimal top-N score for that week
+    best_lookup = {(b["season"], b["week"], b["manager"]): b["best"] for b in bench_rows}
+    bestball: dict[str, dict] = {}
+    for g in games:
+        if g["playoff"]:
+            continue
+        ba = best_lookup.get((g["season"], g["week"], g["a"]))
+        bb = best_lookup.get((g["season"], g["week"], g["b"]))
+        if ba is None or bb is None:
+            continue
+        for me, mine, theirs in ((g["a"], ba, bb), (g["b"], bb, ba)):
+            d = bestball.setdefault(me, {"w": 0, "l": 0, "t": 0})
+            if mine > theirs:
+                d["w"] += 1
+            elif mine < theirs:
+                d["l"] += 1
+            else:
+                d["t"] += 1
+
+    for row in mrows:
+        b = bench.get(row["name"], {"total": 0.0, "weeks": 0, "clean": 0, "worst": None})
+        row["bench_total"] = round(b["total"], 1)
+        row["bench_avg"] = round(b["total"] / b["weeks"], 1) if b["weeks"] else 0.0
+        row["bench_clean"] = b["clean"]
+        w = b["worst"]
+        row["bench_worst"] = (f"{w['bench']:.1f} pts · {w['season']} W{w['week']}") if w else "—"
+        row["bench_worst_pts"] = round(w["bench"], 1) if w else 0.0
+        bb = bestball.get(row["name"], {"w": 0, "l": 0, "t": 0})
+        row["bestball_record"] = f"{bb['w']}-{bb['l']}" + (f"-{bb['t']}" if bb["t"] else "")
+        row["bestball_gain"] = (bb["w"] - row["w"])
+
+    # ---------- trades, resolved on what each side actually received
+    names = player_names()
+    trade_rows = []
+    skipped_trades: list[dict] = []
+    for t in trades_raw:
+        sides = []
+        mismatch = False
+        for rid, mgr in t["sides"]:
+            acquired = [pid for pid, dest in t["adds"].items() if dest == rid]
+            players, total = [], 0.0
+            for pid in acquired:
+                pts = 0.0
+                seen_on = set()
+                for wk in range(t["week"] + 1, (t["last_week"] or 0) + 1):
+                    pts += roster_points.get((t["season"], rid, wk), {}).get(pid, 0) or 0
+                    where = roster_week.get((t["season"], wk, pid))
+                    if where:
+                        seen_on.add(where)
+                if seen_on and rid not in seen_on:
+                    mismatch = True
+                nm, pos = names.get(pid, [f"Player {pid}", ""])
+                players.append({"name": nm, "pos": pos, "pts": round(pts, 1)})
+                total += pts
+            owner = t["owners"].get(rid)
+            picks = [dp for dp in t["draft_picks"]
+                     if dp.get("owner_id") in (rid, owner)]
+            players.sort(key=lambda x: -x["pts"])
+            sides.append({"manager": mgr, "players": players, "total": round(total, 1),
+                          "picks": len(picks)})
+        if len(sides) != 2 or mismatch:
+            skipped_trades.append({"season": t["season"], "week": t["week"]})
+            continue
+        sides.sort(key=lambda x: -x["total"])
+        margin = round(sides[0]["total"] - sides[1]["total"], 1)
+        trade_rows.append({
+            "season": t["season"], "week": t["week"],
+            "winner": sides[0], "loser": sides[1], "margin": margin,
+            "tie": abs(margin) < 0.05,
+            "level": ("Larceny" if margin >= 150 else "Clear win" if margin >= 60
+                      else "Slight edge" if margin >= 15 else "A wash"),
+        })
+    trade_rows.sort(key=lambda x: (-x["margin"], x["season"]))
+    if skipped_trades:
+        print(f"[hof] WARN skipped {len(skipped_trades)} trade(s) with inconsistent roster "
+              f"numbering: {skipped_trades}")
+
+    trade_net: dict[str, float] = {}
+    for tr in trade_rows:
+        trade_net[tr["winner"]["manager"]] = trade_net.get(tr["winner"]["manager"], 0.0) + tr["margin"]
+        trade_net[tr["loser"]["manager"]] = trade_net.get(tr["loser"]["manager"], 0.0) - tr["margin"]
+    for row in mrows:
+        row["trade_net"] = round(trade_net.get(row["name"], 0.0), 1)
+
     # ---------- league records
     best_sc = max(weekly_scores, key=lambda x: x["points"])
     worst_sc = min(weekly_scores, key=lambda x: x["points"])
@@ -745,6 +897,73 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             cells[a][b] = f"{r['a_wins']}-{r['b_wins']}" + (f"-{r['ties']}" if r["ties"] else "")
             cells[b][a] = f"{r['b_wins']}-{r['a_wins']}" + (f"-{r['ties']}" if r["ties"] else "")
 
+    # ---------- awards night
+    in_progress = seasons_out[-1].get("in_progress") if seasons_out else False
+    completed = [r for r in season_totals
+                 if not (in_progress and r["season"] == seasons_out[-1]["season"])] or season_totals
+
+    def team_label(r):
+        return f"{r['manager']} · {r['season']}"
+
+    mvp = max(completed, key=lambda r: (r["w"] - r["l"], r["pf"]))
+    spoon = min(completed, key=lambda r: (r["w"] - r["l"], r["pf"]))
+    scoring_king = max(completed, key=lambda r: r["pf"])
+    iron = max(mrows, key=lambda m: (m["seasons"], m["games"]))
+    cursed = min(mrows, key=lambda m: m["luck"])
+    wizard = max(mrows, key=lambda m: m["draft_surplus"])
+    shark = max(mrows, key=lambda m: m["trade_net"])
+    regret = max([m for m in mrows if m["seasons"] >= 2] or mrows, key=lambda m: m["bench_avg"])
+    coulda = max(mrows, key=lambda m: m["bestball_gain"])
+    regulars = [m for m in mrows if m["seasons"] >= 2] or mrows
+    cleanest = min(regulars, key=lambda m: m["bench_avg"] if m["bench_avg"] else 999)
+
+    awards = [
+        {"title": "Most Valuable Manager", "winner": mvp["manager"],
+         "value": f"{mvp['w']}-{mvp['l']}",
+         "detail": f"{mvp['season']} · {mvp['pf']:.1f} PF · finish {ordinal(mvp.get('finish', 0))}"},
+        {"title": "The Wooden Spoon", "winner": spoon["manager"],
+         "value": f"{spoon['w']}-{spoon['l']}",
+         "detail": f"{spoon['season']} · {spoon['pf']:.1f} PF · the floor of the league"},
+        {"title": "Scoring King", "winner": scoring_king["manager"],
+         "value": f"{scoring_king['pf']:.1f}",
+         "detail": f"{scoring_king['season']} · {scoring_king['w']}-{scoring_king['l']}"},
+        {"title": "Draft Wizard", "winner": wizard["name"],
+         "value": f"{wizard['draft_surplus']:+.0f}",
+         "detail": "Career surplus points over round expectation"},
+        {"title": "Trade Shark", "winner": shark["name"],
+         "value": f"{shark['trade_net']:+.0f}",
+         "detail": "Career net points won in trades"},
+        {"title": "The Cursed", "winner": cursed["name"],
+         "value": f"{cursed['luck']:+.2f}",
+         "detail": "Wins minus all-play expectation — the schedule's victim"},
+        {"title": "Bench Regret", "winner": regret["name"],
+         "value": f"{regret['bench_avg']:.1f}/wk",
+         "detail": f"{regret['bench_total']:.0f} points left on the bench, career"},
+        {"title": "The Coulda-Been", "winner": coulda["name"],
+         "value": f"+{coulda['bestball_gain']} W",
+         "detail": f"Would be {coulda['bestball_record']} with perfect lineups"},
+        {"title": "Cleanest Lineup", "winner": cleanest["name"],
+         "value": f"{cleanest['bench_avg']:.1f}/wk",
+         "detail": "Fewest points left on the bench per week"},
+        {"title": "Iron Man", "winner": iron["name"],
+         "value": f"{iron['seasons']} seasons",
+         "detail": f"{iron['games']} games played, never absent"},
+    ]
+
+    # bench league records
+    bench_reg = [b for b in bench_rows if not b["playoff"]]
+    worst_bench = max(bench_reg, key=lambda b: b["bench"]) if bench_reg else None
+    if worst_bench:
+        records.append({"label": "Most Points Left On Bench", "value": f"{worst_bench['bench']:.1f}",
+                        "holder": worst_bench["manager"],
+                        "detail": f"{worst_bench['season']} · Week {worst_bench['week']} · scored {worst_bench['actual']:.1f}"})
+    if trade_rows:
+        heist = trade_rows[0]
+        records.append({"label": "Biggest Trade Heist", "value": f"{heist['margin']:+.0f}",
+                        "holder": heist["winner"]["manager"],
+                        "detail": f"{heist['season']} · Week {heist['week']} · "
+                                  f"{', '.join(p['name'] for p in heist['winner']['players'][:2]) or 'draft picks'}"})
+
     # ---------- per-manager H2H detail (drives the dropdown view)
     h2h_detail: dict[str, list] = {n: [] for n in h2h_managers}
     for r in rivalries:
@@ -784,6 +1003,8 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         "shared_titles": sum(1 for x in seasons_out if x.get("co_champions")),
         "drafts": sorted(draft_teams, key=lambda d: (d["season"], -d["surplus"])),
         "drafts_by_season": drafts_by_season,
+        "awards": awards,
+        "trades": trade_rows,
         "draft_highlights": {
             "best_pick": best_pick, "worst_pick": worst_pick, "top_scorer_pick": top_scorer_pick,
         },
@@ -794,8 +1015,8 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
             "weeks": len(weeks_grouped),
             "first_season": seasons_out[0]["season"] if seasons_out else "",
             "last_season": seasons_out[-1]["season"] if seasons_out else "",
-            "trades": sum(1 for t in tx_rows if t["type"] == "trade"),
-            "moves": len(tx_rows),
+            "trades": len({t.get("txid") for t in tx_rows if t["type"] == "trade" and t.get("txid")}),
+            "moves": len({t.get("txid") for t in tx_rows if t.get("txid")}),
         },
     }
 
