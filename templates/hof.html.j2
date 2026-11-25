@@ -284,21 +284,24 @@
   <p class="section-blurb">The most-played grudges in league history, plus the tightest and the ugliest of the lot.</p>
 
   <div class="hof-rivalry-cards">
-    {% for r in rivalries[:6] %}
+    {% for r in rivalries[:8] %}
     <div class="rivalry-card">
       <div class="rivalry-pair">{{ r.a }} <span class="versus-sm">v</span> {{ r.b }}</div>
       <div class="rivalry-score">{{ r.a_wins }}–{{ r.b_wins }}{% if r.ties %}–{{ r.ties }}{% endif %}</div>
       <div class="rivalry-meta">{{ r.games }} meetings · avg margin {{ "%.1f"|format(r.avg_margin) }}</div>
       <div class="rivalry-meta dim">Closest {{ r.closest }}</div>
       <div class="rivalry-meta dim">Current streak {{ r.streak }}</div>
+      <div class="rivalry-meta">Playoffs {{ r.a_playoff_wins }}–{{ r.b_playoff_wins }}{% if r.playoff_ties %}–{{ r.playoff_ties }}{% endif %}{% if not r.playoff_games %} <span class="dim">(never met)</span>{% endif %}</div>
     </div>
     {% endfor %}
   </div>
 
   <h3 class="hof-subhead">Head-to-Head</h3>
-  <p class="hof-footnote">Pick a manager to see their record against every other manager in league history. Head-to-head counts posted
-    weekly scores; the All-Time Ledger follows Sleeper's official standings, which absorb stat corrections — so a corrected
-    result or two may differ between the two charts.</p>
+  <p class="hof-footnote">Pick a manager to see their record against every other manager in league history. The record counts
+    regular-season games only; playoff meetings are carried as their own column, because a January night is not a Sunday in
+    September. Where two pairings have met the same number of times, the pair with more playoff meetings ranks higher.
+    Head-to-head counts posted weekly scores; the All-Time Ledger follows Sleeper's official standings, which absorb stat
+    corrections — so a corrected result or two may differ between the two charts.</p>
 
   <div class="h2h-picker">
     <label for="h2h-select">Manager</label>
@@ -314,6 +317,7 @@
         <tr>
           <th>Opponent</th>
           <th class="col-record">Record</th>
+          <th class="col-record">Playoffs</th>
           <th class="col-pf">Avg Margin</th>
           <th>Closest</th>
           <th>Worst Beating</th>
@@ -322,7 +326,7 @@
         </tr>
       </thead>
       <tbody id="h2h-body">
-        <tr><td colspan="7" class="dim">Select a manager above.</td></tr>
+        <tr><td colspan="8" class="dim">Select a manager above.</td></tr>
       </tbody>
       <tfoot id="h2h-foot"></tfoot>
     </table>
@@ -346,17 +350,21 @@
     function render(name) {
       var rows = data[name] || [];
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="7" class="dim">No completed meetings on record.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="dim">No completed meetings on record.</td></tr>';
         foot.innerHTML = '';
         return;
       }
-      var w = 0, l = 0, t = 0, g = 0;
+      var w = 0, l = 0, t = 0, g = 0, pg = 0, pw = 0, pl = 0, pt = 0;
       var html = rows.map(function (r) {
         w += r.w; l += r.l; t += r.t; g += r.games;
+        pg += r.playoff_games; pw += r.pw; pl += r.pl; pt += r.pt;
         var lead = r.w > r.l ? 'h2h-lead' : (r.w < r.l ? 'h2h-trail' : '');
+        var plead = r.pw > r.pl ? 'h2h-lead' : (r.pw < r.pl ? 'h2h-trail' : '');
         return '<tr>' +
           '<td><strong>' + esc(r.opp) + '</strong></td>' +
           '<td class="col-record ' + lead + '">' + r.w + '–' + r.l + (r.t ? '–' + r.t : '') + '</td>' +
+          '<td class="col-record ' + (r.playoff_games ? plead : 'dim') + '">' +
+            (r.playoff_games ? r.pw + '–' + r.pl + (r.pt ? '–' + r.pt : '') : '—') + '</td>' +
           '<td class="col-pf">' + Number(r.avg_margin).toFixed(1) + '</td>' +
           '<td class="dim">' + esc(r.closest) + '</td>' +
           '<td class="dim">' + esc(r.biggest) + '</td>' +
@@ -368,8 +376,10 @@
       var overall = (w + 0.5 * t) / (g || 1);
       foot.innerHTML = '<tr><td><strong>' + esc(name) + ' — all opponents</strong></td>' +
         '<td class="col-record"><strong>' + w + '–' + l + (t ? '–' + t : '') + '</strong></td>' +
+        '<td class="col-record"><strong>' + (pg ? pw + '–' + pl + (pt ? '–' + pt : '') : '—') + '</strong></td>' +
         '<td class="col-pf"><strong>' + overall.toFixed(3) + ' win%</strong></td>' +
-        '<td colspan="4"><span class="dim">' + g + ' games across ' + rows.length + ' opponents</span></td></tr>';
+        '<td colspan="4"><span class="dim">' + g + ' regular-season games across ' + rows.length +
+          ' opponents' + (pg ? ' · ' + pg + ' playoff meetings' : '') + '</span></td></tr>';
     }
 
     sel.addEventListener('change', function () { render(sel.value); });

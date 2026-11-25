@@ -1023,11 +1023,10 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
 
     # ---------- rivalries
     pairs: dict[tuple, list] = {}
+    playoff_pairs: dict[tuple, list] = {}
     for g in games:
-        if g["playoff"]:
-            continue
         k = tuple(sorted([g["a"], g["b"]]))
-        pairs.setdefault(k, []).append(g)
+        (playoff_pairs if g["playoff"] else pairs).setdefault(k, []).append(g)
     rivalries = []
     for (x, y), gs in pairs.items():
         gs.sort(key=lambda g: (g["season"], g["week"]))
@@ -1048,15 +1047,27 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 streak_len += 1
             else:
                 break
+        # Playoff history is kept as its own record: a January meeting is not a
+        # Sunday in September, and folding it into the regular-season series
+        # would let one night outweigh a decade. The count ranks the cards.
+        pgs = sorted(playoff_pairs.get((x, y), []), key=lambda g: (g["season"], g["week"]))
+        pw = sum(1 for g in pgs if (g["a"] == x and g["a_pts"] > g["b_pts"]) or (g["b"] == x and g["b_pts"] > g["a_pts"]))
+        pt = sum(1 for g in pgs if g["a_pts"] == g["b_pts"])
+        pl = len(pgs) - pw - pt
+        last_p = _last_meeting(pgs[-1]) if pgs else ""
+
         rivalries.append({
             "a": x, "b": y, "games": len(gs), "a_wins": xw, "b_wins": yw, "ties": ties,
+            "playoff_games": len(pgs), "a_playoff_wins": pw, "b_playoff_wins": pl,
+            "playoff_ties": pt, "playoff_last": last_p,
             "avg_margin": round(statistics.mean(abs(g["a_pts"] - g["b_pts"]) for g in gs), 2),
             "closest": f"{closest['season']} W{closest['week']} · {abs(closest['a_pts']-closest['b_pts']):.2f}",
             "biggest": f"{biggest['season']} W{biggest['week']} · {abs(biggest['a_pts']-biggest['b_pts']):.1f}",
             "streak": f"{streak_holder} · {streak_len}" if streak_holder else "—",
             "last": _last_meeting(gs[-1]) if gs else "",
         })
-    rivalries.sort(key=lambda r: -r["games"])
+    # Most meetings first; the number of playoff meetings breaks the tie.
+    rivalries.sort(key=lambda r: (-r["games"], -r["playoff_games"], r["a"], r["b"]))
 
     records = [
         {"label": "Highest Weekly Score", "value": f"{best_sc['points']:.1f}", "holder": best_sc["manager"],
@@ -1115,6 +1126,9 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 "games": r["games"], "avg_margin": r["avg_margin"],
                 "closest": r["closest"], "biggest": r["biggest"],
                 "streak": r["streak"], "last": r["last"],
+                "playoff_games": r["playoff_games"], "pw": r["a_playoff_wins"],
+                "pl": r["b_playoff_wins"], "pt": r["playoff_ties"],
+                "playoff_last": r["playoff_last"],
             })
         if b in h2h_detail:
             h2h_detail[b].append({
@@ -1122,9 +1136,12 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 "games": r["games"], "avg_margin": r["avg_margin"],
                 "closest": r["closest"], "biggest": r["biggest"],
                 "streak": r["streak"], "last": r["last"],
+                "playoff_games": r["playoff_games"], "pw": r["b_playoff_wins"],
+                "pl": r["a_playoff_wins"], "pt": r["playoff_ties"],
+                "playoff_last": r["playoff_last"],
             })
     for name, rows in h2h_detail.items():
-        rows.sort(key=lambda x: (-x["games"], x["opp"]))
+        rows.sort(key=lambda x: (-x["games"], -x["playoff_games"], x["opp"]))
 
     # ---------- career notes for the résumé grid
     blurb_facts = {}
