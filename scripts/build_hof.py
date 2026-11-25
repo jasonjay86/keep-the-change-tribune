@@ -431,6 +431,28 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 "weeks": w + l + t, "playoff_w": 0, "playoff_l": 0,
             }
 
+        # Championship-bracket participants. Sleeper runs a consolation bracket in
+        # the same weeks, so "week >= playoff_start" is NOT the same thing as a
+        # playoff game — the toilet bowl would otherwise count as playoff history.
+        bracket_rids = set()
+        for bg in s["winners"]:
+            for k in ("t1", "t2"):
+                if isinstance(bg.get(k), int):
+                    bracket_rids.add(bg[k])
+
+        def _is_playoff(rid: int, wk: int) -> bool:
+            """A team-week in the championship bracket (not the consolation draw)."""
+            if wk < s["playoff_start"]:
+                return False
+            return not bracket_rids or rid in bracket_rids
+
+        def _is_playoff_game(ra: int, rb: int, wk: int) -> bool:
+            if wk < s["playoff_start"]:
+                return False
+            if not bracket_rids:
+                return True   # no bracket published yet: fall back to the week
+            return ra in bracket_rids and rb in bracket_rids
+
         # ---- walk weeks
         for wk in sorted(s["matchups"]):
             if live_week and wk >= live_week:
@@ -450,7 +472,8 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 if isinstance(pts, (int, float)) and pts > 0 and rid in ts:
                     weekly_scores.append({"season": season, "week": wk, "manager": ts[rid]["manager"],
                                           "team": ts[rid]["team"], "points": float(pts),
-                                          "playoff": wk >= s["playoff_start"]})
+                                          "playoff": _is_playoff(rid, wk),
+                                          "postseason": wk >= s["playoff_start"]})
                     ts[rid]["weeks"] = ts[rid]["weeks"]  # official totals come from settings
                     starters = [x for x in (row.get("starters") or []) if x and x != "0"]
                     vals = [v for v in pp.values() if isinstance(v, (int, float))]
@@ -460,7 +483,8 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                     bench_rows.append({"season": season, "week": wk, "manager": ts[rid]["manager"],
                                        "team": ts[rid]["team"], "bench": bench,
                                        "actual": round(float(pts), 2), "best": best,
-                                       "playoff": wk >= s["playoff_start"]})
+                                       "playoff": _is_playoff(rid, wk),
+                                       "postseason": wk >= s["playoff_start"]})
             for mid, pair in by_match.items():
                 if len(pair) != 2:
                     continue
@@ -474,7 +498,8 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                 if ra not in ts or rb not in ts:
                     continue
                 playoff = wk >= s["playoff_start"]
-                g = {"season": season, "week": wk, "playoff": playoff,
+                g = {"season": season, "week": wk, "playoff": _is_playoff_game(ra, rb, wk),
+                     "postseason": playoff,
                      "a": ts[ra]["manager"], "a_team": ts[ra]["team"], "a_pts": float(pa),
                      "b": ts[rb]["manager"], "b_team": ts[rb]["team"], "b_pts": float(pb)}
                 games.append(g)
@@ -492,7 +517,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
                             acc["l"] += 1
                         else:
                             acc["t"] += 1
-                if playoff:
+                if _is_playoff_game(ra, rb, wk):
                     if pa > pb:
                         ts[ra]["playoff_w"] += 1; ts[rb]["playoff_l"] += 1
                     elif pb > pa:
@@ -510,11 +535,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
         # ---- playoff finale from bracket
         champ_rid = runner_rid = None
         third_rid = None
-        bracket_rids = set()
         for g in s["winners"]:
-            for k in ("t1", "t2"):
-                if isinstance(g.get(k), int):
-                    bracket_rids.add(g[k])
             if g.get("p") == 1:
                 champ_rid = g.get("w"); runner_rid = g.get("l")
             if g.get("p") == 3:
@@ -675,7 +696,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
 
     for sc in weekly_scores:
         d = m(sc["manager"])
-        if not sc["playoff"]:
+        if not sc.get("postseason"):
             d["best_score"] = max(d["best_score"], sc["points"])
             d["worst_score"] = min(d["worst_score"], sc["points"])
 
@@ -690,7 +711,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
 
     # margins
     for g in games:
-        if g["playoff"]:
+        if g.get("postseason"):
             continue
         for me, mine, theirs in ((g["a"], g["a_pts"], g["b_pts"]), (g["b"], g["b_pts"], g["a_pts"])):
             d = m(me)
@@ -814,7 +835,7 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
     # ---------- bench points (lineup regret) and best-ball
     bench: dict[str, dict] = {}
     for b in bench_rows:
-        if b["playoff"]:
+        if b.get("postseason"):
             continue
         d = bench.setdefault(b["manager"], {"total": 0.0, "weeks": 0, "clean": 0, "worst": None})
         d["total"] += b["bench"]
@@ -1026,7 +1047,11 @@ def compute(seasons_raw: list[dict], refresh: bool) -> dict:
     playoff_pairs: dict[tuple, list] = {}
     for g in games:
         k = tuple(sorted([g["a"], g["b"]]))
-        (playoff_pairs if g["playoff"] else pairs).setdefault(k, []).append(g)
+        if g["playoff"]:
+            playoff_pairs.setdefault(k, []).append(g)
+        elif not g.get("postseason"):
+            pairs.setdefault(k, []).append(g)
+        # consolation games count for neither: not the season, not the bracket
     rivalries = []
     for (x, y), gs in pairs.items():
         gs.sort(key=lambda g: (g["season"], g["week"]))
